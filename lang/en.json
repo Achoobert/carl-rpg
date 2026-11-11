@@ -22,7 +22,45 @@
       "Inventory": "Inventory",
       "Boons": "Boons",
       "Conditions": "Conditions",
+      "Defenses": "Defenses",
+      "Pet": "Pet",
       "Description": "Description"
+    },
+    "CrawlerForge": {
+      "Import": "Import CrawlerForge",
+      "Imported": "Imported {name} from CrawlerForge.",
+      "Failed": "CrawlerForge import failed: {error}"
+    },
+    "PdfImport": {
+      "Title": "Import Rulebook PDF",
+      "Open": "Import Rulebook PDF",
+      "MenuHint": "Read your own copy of a Dungeon Crawler Carl RPG book into this world: gear, spells, Mobs, achievements and maps.",
+      "PickHint": "Pick your own copy of a Dungeon Crawler Carl RPG book. It is read in your browser; nothing is uploaded except map images, which are saved to your Foundry Data folder.",
+      "File": "Rulebook PDF",
+      "Read": "Read PDF",
+      "Import": "Import",
+      "GMOnly": "Only the GM can import a rulebook.",
+      "Reading": "Reading {title}...",
+      "ReadingPage": "Reading {title}: page {done} of {total}",
+      "CheckingMaps": "Looking for maps: {n} of {total}",
+      "ResultsHint": "Found in {title}. Everything goes into folders named after the book; importing the same book again updates those documents instead of copying them.",
+      "Content": "Content",
+      "Maps": "Maps",
+      "MapsHint": "Pages that look like maps are checked. Uncheck any that are art, or check any the importer missed.",
+      "Importing": "Importing {title}...",
+      "Done": "Imported {title}: {summary}.",
+      "SummaryLine": "{kind} {created} new, {updated} updated",
+      "Failed": "Rulebook import failed: {error}",
+      "NoWebp": "This browser cannot save WebP images.",
+      "Achievements": "Achievements",
+      "Kind": {
+        "gear": "Gear",
+        "spells": "Spells",
+        "items": "Items",
+        "mobs": "Mobs",
+        "achievements": "Achievements",
+        "maps": "Maps"
+      }
     },
     "Toolbox": {
       "Title": "GM Toolbox",
@@ -120,7 +158,59 @@
       "Defenses": "Defenses",
       "Dr": "DR (flat damage reduction)",
       "Resistances": "Resistances",
-      "ResistanceGrantedHint": "Overridden by an owned item's Resistance grant"
+      "ResistanceGrantedHint": "Overridden by an owned item's Resistance grant",
+      "DrShort": "DR",
+      "Evade": "Evade",
+      "Step": "Step",
+      "Pronouns": "Gender/Pronouns",
+      "CrawlerNumber": "Crawler #",
+      "Popularity": "Popularity",
+      "AiFavor": "AI Favor",
+      "ExternalBuffs": "External Buffs (Max 3)",
+      "Hotlist": "Hotlist",
+      "GearSlots": "Gear Slots / Tattoos / Patches",
+      "AccessoriesCount": "Accessories · {count} of {max}",
+      "AddAccessory": "Add",
+      "ClearSlot": "Clear slot",
+      "DropItemHere": "Drop an item here",
+      "Accessories": "Accessories",
+      "Story": "Story",
+      "PastTrauma": "Past Trauma",
+      "LooseEnds": "Loose Ends",
+      "Regrets": "Regrets",
+      "Notes": "Notes",
+      "Pet": "Pet",
+      "PetAttacks": "Attacks",
+      "Special": "Special",
+      "Mount": "Mount / Vehicle",
+      "Occupants": "Occupants",
+      "ImportantKills": "Important Things I've Killed",
+      "Clubs": "Clubs, Societies, Guilds, Etc.",
+      "PersonalSpace": "Personal Space",
+      "Tier": "Tier",
+      "Amenities": "Amenities",
+      "Deity": "Deity",
+      "Sponsors": "Sponsors"
+    },
+    "GearSlot": {
+      "Head": "Head",
+      "Arms": "Arms",
+      "Torso": "Torso",
+      "Gloves": "Gloves",
+      "MainHand": "Main Hand",
+      "Legs": "Legs",
+      "OffHand": "Off Hand",
+      "Feet": "Feet"
+    },
+    "Size": {
+      "Tiny": "Tiny (1)",
+      "Small": "Small (2)",
+      "Petite": "Petite (3)",
+      "Medium": "Medium (4)",
+      "Large": "Large (5)",
+      "Huge": "Huge (6)",
+      "Colossal": "Colossal (7)",
+      "Gargantuan": "Gargantuan (8)"
     },
     "Attack": {
       "Name": "Name",
@@ -137,7 +227,8 @@
       "Range": "Range",
       "AiFavor": "AI Favor",
       "Cooldown": "Cooldown",
-      "Limitations": "Limitations"
+      "Limitations": "Limitations",
+      "EditDetails": "Edit Skill / Add Ranks"
     },
     "Spell": {
       "ManaCost": "Mana Cost",
@@ -509,31 +600,70 @@
       "CriticalFail": "Critical Fail"
     },
     "Debuff": {
-      "Blinded": { "Label": "Blinded", "Effect": "Roll all sight-based Skill Checks with Disadvantage." },
+      "Blinded": {
+        "Label": "Blinded",
+        "Effect": "Roll all sight-based Skill Checks with Disadvantage."
+      },
       "BloodTrail": { "Label": "Blood Trail", "Effect": "1d6+Floor damage/round. Stackable." },
       "Burned": { "Label": "Burned", "Effect": "1d10+Floor Fire damage/round." },
       "Drowning": { "Label": "Drowning", "Effect": "1d6+Floor damage/round." },
-      "Dying": { "Label": "Dying", "Effect": "Can't act. CON Mod = rounds until death; further damage just ticks the countdown." },
+      "Dying": {
+        "Label": "Dying",
+        "Effect": "Can't act. CON Mod = rounds until death; further damage just ticks the countdown."
+      },
       "Enraged": { "Label": "Enraged", "Effect": "May only perform Attack and Move Actions." },
-      "Fatigued": { "Label": "Fatigued", "Effect": "-1 penalty to all Checks; Move halved. Stackable." },
-      "Held": { "Label": "Held", "Effect": "Can't use Move Actions or take a Step. Attacks against you made with Advantage." },
-      "LongTermMajorInjury": { "Label": "Long-Term Major Injury", "Effect": "-5 penalty to all Checks." },
-      "LongTermMinorInjury": { "Label": "Long-Term Minor Injury", "Effect": "-2 penalty to all Checks." },
-      "MajorInjury": { "Label": "Major Injury", "Effect": "-5 penalty to all Checks. A 2nd Major Injury upgrades to Long-Term Major Injury." },
-      "MinorInjury": { "Label": "Minor Injury", "Effect": "-2 penalty to all Checks. A 2nd Minor Injury upgrades to Long-Term Minor Injury." },
+      "Fatigued": {
+        "Label": "Fatigued",
+        "Effect": "-1 penalty to all Checks; Move halved. Stackable."
+      },
+      "Held": {
+        "Label": "Held",
+        "Effect": "Can't use Move Actions or take a Step. Attacks against you made with Advantage."
+      },
+      "LongTermMajorInjury": {
+        "Label": "Long-Term Major Injury",
+        "Effect": "-5 penalty to all Checks."
+      },
+      "LongTermMinorInjury": {
+        "Label": "Long-Term Minor Injury",
+        "Effect": "-2 penalty to all Checks."
+      },
+      "MajorInjury": {
+        "Label": "Major Injury",
+        "Effect": "-5 penalty to all Checks. A 2nd Major Injury upgrades to Long-Term Major Injury."
+      },
+      "MinorInjury": {
+        "Label": "Minor Injury",
+        "Effect": "-2 penalty to all Checks. A 2nd Minor Injury upgrades to Long-Term Minor Injury."
+      },
       "Muted": { "Label": "Muted", "Effect": "Can't speak or cast Spells." },
       "Poisoned": { "Label": "Poisoned", "Effect": "1d8+Floor Poison damage/round. Stackable." },
       "Paralyzed": { "Label": "Paralyzed", "Effect": "Can't take any Actions." },
-      "Queasy": { "Label": "Queasy", "Effect": "Next Action requiring a roll is made with Disadvantage." },
-      "Sepsis": { "Label": "Sepsis", "Effect": "Gains Staggered; 1d10+Floor Poison damage/round until healed." },
+      "Queasy": {
+        "Label": "Queasy",
+        "Effect": "Next Action requiring a roll is made with Disadvantage."
+      },
+      "Sepsis": {
+        "Label": "Sepsis",
+        "Effect": "Gains Staggered; 1d10+Floor Poison damage/round until healed."
+      },
       "ShitFaced": { "Label": "Shit-Faced", "Effect": "All Checks made with Disadvantage." },
       "Shocked": { "Label": "Shocked", "Effect": "Lose your next Action." },
       "SoreAsShit": { "Label": "Sore as Shit", "Effect": "-1 penalty to all rolls." },
-      "Staggered": { "Label": "Staggered", "Effect": "Next Action can't be a Move; if it's an Attack, made with Disadvantage; can't take a 10ft Step." },
+      "Staggered": {
+        "Label": "Staggered",
+        "Effect": "Next Action can't be a Move; if it's an Attack, made with Disadvantage; can't take a 10ft Step."
+      },
       "StiffLegs": { "Label": "Stiff Legs", "Effect": "Can't take 10ft Steps." },
       "Stunned": { "Label": "Stunned", "Effect": "Next Check made with Disadvantage." },
-      "TakeDown": { "Label": "Take Down", "Effect": "Fall prone; Attacks against you made with Advantage." },
-      "Terrified": { "Label": "Terrified", "Effect": "Can't take Move Actions or 10ft Steps; Attacks made with Disadvantage." },
+      "TakeDown": {
+        "Label": "Take Down",
+        "Effect": "Fall prone; Attacks against you made with Advantage."
+      },
+      "Terrified": {
+        "Label": "Terrified",
+        "Effect": "Can't take Move Actions or 10ft Steps; Attacks made with Disadvantage."
+      },
       "TheTaint": { "Label": "The Taint", "Effect": "Can't be healed." },
       "Woozy": { "Label": "Woozy", "Effect": "Can't add DEX Mod to Attack or Evade Checks." }
     }

@@ -30,6 +30,24 @@
         {{/if}}
       </div>
     </div>
+    <div class="carl-details-row flexrow">
+      <div class="resource flex-group-center carl-name-row-field">
+        <label class="resource-label">{{localize "CARLRPG.Actor.Pronouns"}}</label>
+        <input type="text" class="carl-w-short" name="system.details.pronouns" value="{{system.details.pronouns}}" />
+      </div>
+      <div class="resource flex-group-center carl-name-row-field">
+        <label class="resource-label">{{localize "CARLRPG.Actor.CrawlerNumber"}}</label>
+        <input type="text" class="carl-w-short" name="system.details.crawlerNumber" value="{{system.details.crawlerNumber}}" />
+      </div>
+      <div class="resource flex-group-center carl-name-row-field">
+        <label class="resource-label">{{localize "CARLRPG.Actor.Popularity"}}</label>
+        <input type="text" class="carl-w-short" name="system.details.popularity" value="{{system.details.popularity}}" data-dtype="Number" />
+      </div>
+      <div class="resource flex-group-center carl-name-row-field">
+        <label class="resource-label">{{localize "CARLRPG.Actor.AiFavor"}}</label>
+        <input type="text" class="carl-w-tiny" name="system.details.aiFavor" value="{{system.details.aiFavor}}" data-dtype="Number" />
+      </div>
+    </div>
     {{> "systems/carl-rpg/templates/actor/parts/hb-bar.hbs"}}
     {{> "systems/carl-rpg/templates/actor/parts/shield-bar.hbs"}}
   </div>

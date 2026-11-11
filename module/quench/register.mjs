@@ -23,12 +23,15 @@ import registerRaceClassGrants from "./batches/race-class-grants.mjs";
 import registerDiceIntegration from "./batches/dice-integration.mjs";
 import registerConditionsIntegration from "./batches/conditions-integration.mjs";
 import registerActorDocument from "./batches/actor-document.mjs";
+import registerActorSheet from "./batches/actor-sheet.mjs";
 import registerItemDocument from "./batches/item-document.mjs";
 import registerDerivedData from "./batches/derived-data.mjs";
 import registerRest from "./batches/rest.mjs";
 import registerChatCards from "./batches/chat-cards.mjs";
 import registerDebuffEffectsPure from "./batches/debuff-effects-pure.mjs";
 import registerDebuffAutomation from "./batches/debuff-automation.mjs";
+import registerCrawlerForgeImport from "./batches/crawlerforge-import.mjs";
+import registerPdfImport from "./batches/pdf-import.mjs";
 
 const BATCH_REGISTRARS = [
   registerRules,
@@ -42,12 +45,15 @@ const BATCH_REGISTRARS = [
   registerDiceIntegration,
   registerConditionsIntegration,
   registerActorDocument,
+  registerActorSheet,
   registerItemDocument,
   registerDerivedData,
   registerRest,
   registerChatCards,
   registerDebuffEffectsPure,
   registerDebuffAutomation,
+  registerCrawlerForgeImport,
+  registerPdfImport,
 ];
 
 export function registerCarlRpgQuenchTests(quench) {

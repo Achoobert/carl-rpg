@@ -1,0 +1,112 @@
+# Builds a prerelease GitHub Release on every push to the `edge` branch.
+# The packaged system.json is the repo file with title/manifest/download
+# swapped so it's a "Dungeon Crawler Carl RPG EDGE" build, plus a version
+# whose patch segment continues from the previously released edge artifact.
+# The id stays `carl-rpg` so it installs into (and replaces) the main
+# system's dir. The repo file is not committed back.
+#
+#   https://github.com/<repo>/releases/download/edge/system.json
+
+name: Build Edge Prerelease
+
+on:
+  push:
+    branches:
+      - edge
+
+concurrency:
+  group: release-edge
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build CSS
+        run: npm run build
+
+      - name: Build Compendium Packs
+        run: npm run build:packs
+
+      - name: Compute Next Version
+        id: bump_version
+        run: |
+          repo_version=$(jq -r '.version' system.json)
+          IFS='.' read -r repo_major repo_minor _ <<< "$repo_version"
+
+          released_version=$(curl -fsSL \
+            "https://github.com/${{ github.repository }}/releases/download/edge/system.json" \
+            | jq -r '.version // empty' || true)
+
+          if [ -n "$released_version" ]; then
+            IFS='.' read -r old_major old_minor old_patch <<< "$released_version"
+          fi
+
+          if [ "${old_major:-}" = "$repo_major" ] && [ "${old_minor:-}" = "$repo_minor" ]; then
+            next="${repo_major}.${repo_minor}.$((10#${old_patch:-0} + 1))"
+          else
+            next="${repo_major}.${repo_minor}.0"
+          fi
+
+          echo "Released version: ${released_version:-none}; repo: ${repo_version}; next: ${next}"
+          echo "released=${released_version}" >> "$GITHUB_OUTPUT"
+          echo "next=${next}" >> "$GITHUB_OUTPUT"
+
+      # id stays `carl-rpg` so this installs into the same dir as the main
+      # system (replacing it), not alongside it. All other fields stay as committed.
+      - name: Update system.json and Create System Archive
+        run: |
+          edge_base="https://github.com/${{ github.repository }}/releases/download/edge"
+          jq --arg version "${{ steps.bump_version.outputs.next }}" \
+             --arg id "carl-rpg" \
+             --arg title "Dungeon Crawler Carl RPG EDGE" \
+             --arg manifest "$edge_base/system.json" \
+             --arg download "$edge_base/carl-rpg.zip" \
+             '.version = $version | .id = $id | .title = $title | .manifest = $manifest | .download = $download' \
+             system.json > system.json.tmp
+          mv system.json.tmp system.json
+
+          zip -r carl-rpg.zip \
+            system.json \
+            README.md \
+            CHANGELOG.md \
+            LICENSE.txt \
+            assets \
+            lang \
+            css/carl-rpg.css \
+            templates \
+            packs \
+            module \
+            -x "module/quench/*"
+
+          unzip -p ./carl-rpg.zip system.json | jq -e --arg version "${{ steps.bump_version.outputs.next }}" \
+            '.version == $version'
+
+      - name: Update "edge" Prerelease
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          replacesArtifacts: true
+          makeLatest: false
+          prerelease: true
+          tag: edge
+          commit: ${{ github.sha }}
+          name: "Edge (${{ steps.bump_version.outputs.next }})"
+          body: "Automated edge prerelease build from ${{ github.repository }}@${{ github.sha }}."
+          token: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: "./system.json, ./carl-rpg.zip"

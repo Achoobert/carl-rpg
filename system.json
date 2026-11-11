@@ -40,7 +40,8 @@
   "documentTypes": {
     "Actor": {
       "character": {},
-      "mob": {}
+      "mob": {},
+      "lootBox": {}
     },
     "Item": {
       "item": {},

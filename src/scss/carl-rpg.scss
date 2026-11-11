@@ -17,6 +17,7 @@
 @use "components/chat";
 @use "components/crawler-pages";
 @use "components/pdf-import";
+@use "components/loot-box";
 
 /* Styles limited to carl-rpg sheets */
 .carl-rpg {
@@ -35,4 +36,5 @@
   @include spend-stat-points.styles;
   @include crawler-pages.styles;
   @include pdf-import.styles;
+  @include loot-box.styles;
 }

@@ -1825,3 +1825,82 @@
   object-fit: cover;
   border: 1px solid var(--color-border, #555);
 }
+.carl-rpg.loot-box .window-content {
+  padding: 0;
+}
+.carl-rpg .carl-loot-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  padding: 8px;
+}
+.carl-rpg .carl-loot-box .sheet-header {
+  flex: 0 0 auto;
+}
+.carl-rpg .carl-loot-box prose-mirror,
+.carl-rpg .carl-loot-box .carl-loot-notes {
+  flex: 0 0 auto;
+  min-height: 80px;
+}
+.carl-rpg .carl-loot-controls {
+  align-items: flex-end;
+  gap: 8px;
+}
+.carl-rpg .carl-loot-controls select {
+  min-width: 120px;
+}
+.carl-rpg .carl-loot-generate {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.carl-rpg .carl-loot-list {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+.carl-rpg .carl-loot-card {
+  padding: 6px 8px;
+  border: 1px solid var(--carl-border-soft);
+  border-radius: 4px;
+  background: var(--carl-panel-bg);
+}
+.carl-rpg .carl-loot-card img {
+  flex: 0 0 28px;
+  border: none;
+}
+.carl-rpg .carl-loot-card-head {
+  align-items: center;
+  gap: 6px;
+}
+.carl-rpg .carl-loot-card-head .item-controls {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+}
+.carl-rpg .carl-loot-name {
+  flex: 1 1 auto;
+  font-weight: bold;
+  color: var(--carl-gold);
+}
+.carl-rpg .carl-loot-tier {
+  font-size: 11px;
+  color: var(--carl-text-muted);
+}
+.carl-rpg .carl-loot-description {
+  font-size: 12px;
+}
+.carl-rpg .carl-loot-description p,
+.carl-rpg .carl-loot-description ol {
+  margin: 2px 0;
+}
+.carl-rpg .carl-loot-empty {
+  padding: 12px;
+  text-align: center;
+  color: var(--carl-text-muted);
+}

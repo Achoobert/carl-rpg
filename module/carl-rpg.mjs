@@ -3,6 +3,7 @@ import { CarlRPGItem } from './documents/item.mjs';
 import { CarlRPGCombat } from './documents/combat.mjs';
 import { CarlRPGActorSheet } from './sheets/actor-sheet.mjs';
 import { CarlRPGItemSheet } from './sheets/item-sheet.mjs';
+import { CarlRPGLootBoxSheet } from './sheets/loot-box-sheet.mjs';
 import { preloadHandlebarsTemplates } from './helpers/templates.mjs';
 import { CARLRPG } from './helpers/config.mjs';
 import * as models from './data/_module.mjs';
@@ -11,6 +12,7 @@ import CarlToolbox from './apps/gm-toolbox.mjs';
 import CarlSpendStatPointsDialog from './apps/spend-stat-points-dialog.mjs';
 import { registerChatListener } from './chat/chat-listener.mjs';
 import { registerChatSocket } from './helpers/chat-socket.mjs';
+import { registerLootBoxSocket } from './helpers/loot-box.mjs';
 import { bakeItemGrants } from './helpers/race-class-grants.mjs';
 import { importCrawlerForgeCrawler } from './helpers/crawlerforge-import.mjs';
 import { openRulebookImporter, RulebookImportMenu } from './pdf-import/import-dialog.mjs';
@@ -121,6 +123,7 @@ Hooks.once('init', function () {
   Object.assign(CONFIG.Actor.dataModels, {
     character: models.CarlRPGCharacter,
     mob: models.CarlRPGMob,
+    lootBox: models.CarlRPGLootBox,
   });
 
   CONFIG.Item.documentClass = CarlRPGItem;
@@ -138,6 +141,11 @@ Hooks.once('init', function () {
     types: ['character', 'mob'],
     makeDefault: true,
     label: 'CARLRPG.SheetLabels.Actor',
+  });
+  foundry.applications.apps.DocumentSheetConfig.registerSheet(Actor, 'carl-rpg', CarlRPGLootBoxSheet, {
+    types: ['lootBox'],
+    makeDefault: true,
+    label: 'CARLRPG.SheetLabels.LootBox',
   });
   foundry.applications.apps.DocumentSheetConfig.registerSheet(Item, 'carl-rpg', CarlRPGItemSheet, {
     types: ['item', 'feature', 'skill', 'damageEffect', 'spell', 'class', 'race'],
@@ -286,6 +294,9 @@ Hooks.once('ready', function () {
   // update permission on that ChatMessage (module/helpers/chat-socket.mjs) -
   // needs game.users/game.socket live, hence `ready` rather than `init`.
   registerChatSocket();
+  // Players taking items out of a Loot Box they only observe (see
+  // module/helpers/loot-box.mjs).
+  registerLootBoxSocket();
 
   Hooks.on('hotbarDrop', (bar, data, slot) => createItemMacro(data, slot));
 

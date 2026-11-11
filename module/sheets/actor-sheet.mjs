@@ -14,6 +14,7 @@ import {
   unwearItem,
 } from "../helpers/equip-slots.mjs";
 import CarlDice from "../dice/dice.mjs";
+import { isLootBoxItem, takeLootItem } from "../helpers/loot-box.mjs";
 
 /**
  * Extend the basic ActorSheet with some very simple modifications
@@ -707,6 +708,11 @@ export class CarlRPGActorSheet extends DragDropMixin(HandlebarsApplicationMixin(
       const result = await this._onSortItem(event, item);
       return result?.length ? item : null;
     }
+    // Out of a Loot Box: move it (the box loses it), not copy. A player
+    // only observes the box, so this may go through the GM - see
+    // helpers/loot-box.mjs. A slot drop is skipped; the item lands in the
+    // inventory list.
+    if (isLootBoxItem(item)) return takeLootItem(item, this.actor);
     const keepId = !this.actor.items.has(item.id);
     const itemData = game.items.fromCompendium(item, { clearFolder: true, keepId });
     const created = await Item.create(itemData, { parent: this.actor, keepId });

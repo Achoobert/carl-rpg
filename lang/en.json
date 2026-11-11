@@ -9,7 +9,8 @@
     },
     "SheetLabels": {
       "Actor": "CarlRPG Actor Sheet",
-      "Item": "CarlRPG Item Sheet"
+      "Item": "CarlRPG Item Sheet",
+      "LootBox": "CarlRPG Loot Box Sheet"
     },
     "Tab": {
       "Main": "Main",
@@ -598,6 +599,20 @@
       "Floor": "Floor Boss"
     },
     "LootBox": {
+      "Tier": "Loot Box Tier",
+      "Crawlers": "Crawlers",
+      "Generate": "Generate Loot",
+      "Reroll": "Reroll",
+      "Take": "Take",
+      "TakeHint": "Give this item to {name}. You can also drag it onto any sheet you own.",
+      "View": "View item",
+      "Empty": "This box is empty.",
+      "EmptyGM": "Empty. Pick a tier and click Generate Loot, or drop items here.",
+      "MundaneItem": "Mundane Item",
+      "Taken": "{actor} took {item} from {box}.",
+      "NoCharacter": "You have no assigned Character. Drag the item onto your sheet instead.",
+      "NotYourActor": "You don't own {name}.",
+      "NoGMOnline": "A GM needs to be online to hand out loot.",
       "Bronze": { "Label": "Bronze" },
       "Silver": { "Label": "Silver", "XValues": "+1 Skill Rank or +2 Stat" },
       "Gold": { "Label": "Gold", "XValues": "+1–3 Skill Rank or +3–5 Stat" },
@@ -764,7 +779,8 @@
   "TYPES": {
     "Actor": {
       "character": "Character",
-      "mob": "Mob"
+      "mob": "Mob",
+      "lootBox": "Loot Box"
     },
     "Item": {
       "item": "Item",

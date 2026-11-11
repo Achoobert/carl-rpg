@@ -32,6 +32,7 @@ import registerDebuffEffectsPure from "./batches/debuff-effects-pure.mjs";
 import registerDebuffAutomation from "./batches/debuff-automation.mjs";
 import registerCrawlerForgeImport from "./batches/crawlerforge-import.mjs";
 import registerPdfImport from "./batches/pdf-import.mjs";
+import registerLootBox from "./batches/loot-box.mjs";
 
 const BATCH_REGISTRARS = [
   registerRules,
@@ -54,6 +55,7 @@ const BATCH_REGISTRARS = [
   registerDebuffAutomation,
   registerCrawlerForgeImport,
   registerPdfImport,
+  registerLootBox,
 ];
 
 export function registerCarlRpgQuenchTests(quench) {

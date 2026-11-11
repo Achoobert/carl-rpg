@@ -20,7 +20,8 @@
     {{#each system.conditions as |condition index|}}
     <li class="item flexrow">
       <div class="item-name">
-        <input type="text" name="{{concat 'system.conditions.' index '.label'}}" value="{{condition.label}}" />
+        <input type="text" name="{{concat 'system.conditions.' index '.label'}}" value="{{condition.label}}"
+          title="{{debuffEffectHint ../config.debuffs condition.key (eq ../actor.type 'mob')}}" />
       </div>
       <div class="item-prop">
         <input type="text" class="carl-w-tiny" name="{{concat 'system.conditions.' index '.stacks'}}" value="{{condition.stacks}}" data-dtype="Number" />

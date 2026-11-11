@@ -143,8 +143,15 @@ export default class CarlRPGMob extends CarlRPGActorBase {
     // one is a GM-facing reference display, the other is roll-time combat
     // math; kept separate so a future change to one doesn't silently drift
     // the other without a test catching it.
+    // Woozy ("Can't add DEX Mod to Attack or Evade Checks", Table 11) is the
+    // one Debuff that names Evade explicitly, so it's the one Debuff this
+    // display value needs to reflect (see CONFIG.CARLRPG.debuffs' own
+    // docstring for why every OTHER Debuff is display-text-only here) -
+    // mirrored independently in dice.mjs's rollAttack targetDifficulty, per
+    // this getter's own note above about not sharing code between the two.
+    const isWoozy = (this.conditions ?? []).some((c) => c.key === "woozy");
     this.surpriseBase = 10 + (this.stats.int?.mod ?? 0);
-    this.evadeBase = 10 + (this.stats.dex?.mod ?? 0);
+    this.evadeBase = 10 + (isWoozy ? 0 : (this.stats.dex?.mod ?? 0));
 
     // Stat-point budget (p.270-272) - guidance only, never enforced beyond
     // the Spend Stat Points dialog's own UI (module/apps/spend-stat-points-

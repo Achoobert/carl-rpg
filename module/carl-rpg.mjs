@@ -188,6 +188,21 @@ Handlebars.registerHelper('toLowerCase', function (str) {
   return str.toLowerCase();
 });
 
+// Resolves a system.conditions[].key entry to its localized "what this does"
+// description, for a hover tooltip on the Conditions tab (see
+// templates/actor/parts/conditions.hbs) - CONFIG.CARLRPG.debuffs.effect is
+// otherwise never displayed anywhere. Prefers the debuff's `mobEffect` over
+// `effect` when the actor is a Mob (see that CONFIG's own docstring for why
+// several debuffs need a differently-worded description for a creature that
+// never rolls its own d20 Checks); falls back to `effect` for every debuff
+// that has no Mob-specific wording, and for any Character.
+Handlebars.registerHelper('debuffEffectHint', function (debuffs, key, isMob) {
+  const preset = debuffs?.[key];
+  if (!preset) return '';
+  const effectKey = (isMob && preset.mobEffect) ? preset.mobEffect : preset.effect;
+  return effectKey ? game.i18n.localize(effectKey) : '';
+});
+
 // Narrows the Change Entry editor's Mode <select> to whichever
 // CARLRPG.changeModes options actually work for a given targetType - see
 // CARLRPG.changeModesByTarget (module/helpers/config.mjs) for why (Override/

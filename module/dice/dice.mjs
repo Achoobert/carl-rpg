@@ -403,7 +403,12 @@ export default class CarlDice {
     let targetDifficulty = null;
     if (target?.actor) {
       const targetSys = target.actor.system;
-      const dexMod = targetSys.stats?.dex?.mod ?? 0;
+      // Woozy ("Can't add DEX Mod to Attack or Evade Checks") is the one
+      // Debuff with a real mechanical hook here rather than just re-worded
+      // text (see CONFIG.CARLRPG.debuffs' docstring) - it explicitly names
+      // Evade, which for this target IS a live-computed Difficulty.
+      const isWoozy = (targetSys.conditions ?? []).some((c) => c.key === "woozy");
+      const dexMod = isWoozy ? 0 : (targetSys.stats?.dex?.mod ?? 0);
       const floor = game.settings.get("carl-rpg", "currentFloor");
       targetDifficulty = 10 + dexMod + floor;
     }

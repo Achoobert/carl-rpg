@@ -77,17 +77,28 @@ export function collectApplicableConditionalModifiers(actorSystem, skillName = n
  * @param {{manaCost: number, description: string, isBase: boolean}[]} [options.manaCostChoices]
  *   Spell Mana-cost variants (docs/known-gaps.md 1.6) - index 0 is always the base cost
  *   (`isBase: true`). Built by the caller (module/dice/dice.mjs's buildManaCostChoices).
- * @returns {Promise<{advantage: "normal"|"advantage"|"disadvantage", difficulty: number|null, modifier: number, checked: Set<string>, damageEffectId: string|null, manaCostChoice: number}|null>}
+ * @param {object[]} [options.debuffRows]  Decorated DebuffRows (module/helpers/
+ *   debuff-effects.mjs's decorateRows) - one pre-ticked checkbox each, so the
+ *   roller can untick a debuff the fiction says doesn't apply.
+ * @param {boolean} [options.showRollMode]  false hides the Advantage/
+ *   Disadvantage radios - a Mob Attack (CarlDice.rollMobAttack) has no d20.
+ * @param {string|null} [options.difficultyLabel]  Overrides the Difficulty
+ *   field's label (e.g. "Base Difficulty" when debuff rows adjust it).
+ * @returns {Promise<{advantage: "normal"|"advantage"|"disadvantage", difficulty: number|null, modifier: number, checked: Set<string>, checkedDebuffs: Set<string>, damageEffectId: string|null, manaCostChoice: number}|null>}
  *   null if the dialog was cancelled/closed.
  */
 export async function promptRollOptions({
   title, difficulty = null, showDifficulty = true, defaultAdvantage = null,
   conditionalModifiers = [], damageEffectChoices = [], manaCostChoices = [],
+  debuffRows = [], showRollMode = true, difficultyLabel = null,
 } = {}) {
   const result = await showCarlDialog({
     title,
     template: "systems/carl-rpg/templates/dialog/roll-options.hbs",
-    context: { difficulty, showDifficulty, defaultAdvantage, conditions: conditionalModifiers, damageEffectChoices, manaCostChoices },
+    context: {
+      difficulty, showDifficulty, defaultAdvantage, conditions: conditionalModifiers, damageEffectChoices, manaCostChoices,
+      debuffRows, showRollMode, difficultyLabel,
+    },
     buttons: [rollButton(), cancelButton()],
   });
   if (!result) return null;
@@ -101,7 +112,10 @@ export async function promptRollOptions({
     if (Object.values(changeConditions).some(Boolean)) checked.add(cm.id);
   }
 
+  const checkedDebuffs = new Set(debuffRows.filter((row) => result.debuffs?.[row.id]).map((row) => row.id));
+
   return {
+    checkedDebuffs,
     advantage: result.advantage ?? "normal",
     difficulty: result.difficulty !== undefined && result.difficulty !== "" ? Number(result.difficulty) : null,
     modifier: Number(result.modifier) || 0,

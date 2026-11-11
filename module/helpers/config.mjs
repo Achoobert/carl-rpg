@@ -313,42 +313,49 @@ CARLRPG.featureTiers = {
 };
 
 /**
- * Table 11: Debuffs (Playing the Game, p. 97). Each carries a default
- * duration type/value, plus a localized `effect` description - purely a
- * GM/player-facing checklist, NOT wired into the modifier engine at all
- * (no `changes` array; nothing here is auto-applied to any roll). The GM
- * reads `effect` and manually enforces it when relevant.
+ * Table 11: Debuffs (Playing the Game, p. 96-97). Each entry carries:
+ *  - `label` / `effect` / `mobEffect` - localized display text. `mobEffect`,
+ *    where present, is the p.96 "Debuffs on Mobs or NPCs" rewording for a
+ *    creature that never rolls its own d20 (shown on the Conditions tab
+ *    tooltip via module/carl-rpg.mjs's `debuffEffectHint` helper).
+ *  - `durationType` / `durationValue` - the default duration. For
+ *    "rounds", `durationValue` counts END-OF-ROUND ticks, not rounds started:
+ *    "until the end of the next round" is 2 (the end of the round it was
+ *    applied in, then the end of the next one). Ticked down automatically by
+ *    module/helpers/round-end.mjs.
+ *  - `stackable` - whether a second application adds a second entry.
+ *  - `mechanics` - the structured hooks the automation reads. Interpreted by
+ *    module/helpers/debuff-effects.mjs (roll-time effects) and
+ *    module/helpers/round-end.mjs (end-of-round/end-of-combat effects):
+ *      penalty: N           "-N to all Checks" (per stack for a Stackable debuff).
+ *      disadvantage: scope  "all" (every Check) | "sight" (sight-based Checks
+ *                           only - surfaced as a dialog toggle) | "attack"
+ *                           (Attacks only) | "nextAttack" (the next Attack,
+ *                           then consumed) | "nextCheck" (the next Check of
+ *                           any kind, then consumed) | "nextAction" (any roll
+ *                           that is the creature's own Action, then consumed).
+ *      endsAfterAction: true  Removed at the end of the creature's next
+ *                           Action, whatever it is (Queasy, Staggered).
+ *      noDexMod: true       Can't add DEX Mod to Attack or Evade.
+ *      attackersGainAdvantage: true  Attacks against this creature have Advantage.
+ *      dot: {formula, damageType}    Damage at the end of each round (p.96:
+ *                           bypasses DR; Resistances/Immunities still apply).
+ *      countdown: true      Dying's "CON Mod rounds until death" countdown;
+ *                           each instance of damage also takes 1 off it.
+ *      endsOnHealing: true  Removed when the creature regains >=1 HB slot.
+ *      endsWithCombat: true Removed when the Combat ends ("end of combat or
+ *                           5 minutes").
+ *      endsOnHbLoss: true   Removed when the creature loses >=1 HB slot.
+ *      noHealing: true      Healing can't be applied.
+ *      noSpells: true       Can't cast Spells.
+ *      noActions: true      Can't take any Actions (rolls are blocked).
+ *      alsoApplies: [key]   Applying this debuff also applies these.
  *
- * `mobEffect`, where present, overrides `effect`'s display for a Mob/Boss
- * target instead of falling back to the crawler wording. This exists
- * because "because the GM doesn't roll d20 Checks" for a Mob (Playing the
- * Game, p.95), every debuff whose crawler text assumes an actual d20 roll
- * (Disadvantage, a flat "-X penalty to Checks") needs to be re-phrased in
- * terms of the Mob's own static Attack Difficulty instead - "reduce the
- * Mob's Difficulty by 5" for Disadvantage-flavored debuffs (plus "the
- * target gets a free Evade Check" where the book calls that out), or "-X to
- * this Mob's Attack Difficulties" for a flat penalty. Damage-over-time
- * debuffs keep the same numbers but the same p.95 passage says they apply
- * at END of round for a Mob (a crawler has its own turn to tick them on).
- * Debuffs with no roll-dependent language (Held, Enraged, Muted, Paralyzed,
- * Shocked, StiffLegs, TakeDown, TheTaint, Dying) have no `mobEffect` - their
- * crawler wording already reads correctly for a Mob target.
- *
- * See module/carl-rpg.mjs's `debuffEffectHint` Handlebars helper for where
- * this actually gets resolved and displayed (templates/actor/parts/
- * conditions.hbs's condition-row tooltip).
- *
- * The ONE debuff with a real mechanical hook instead of just re-worded text
- * is Woozy ("Can't add DEX Mod to Attack or Evade Checks") - it explicitly
- * names Evade, which for a Mob IS a real, live-computed number (see
- * module/dice/dice.mjs's rollAttack `targetDifficulty`, and mob.mjs's
- * `evadeBase`), so both drop the DEX Mod term while a Mob has this debuff
- * active - unlike every other debuff above, which has no live Mob-Attack-
- * Difficulty number anywhere in the system to actually apply a "-5"/"-X" to
- * (Mob attacks are manual stat-block text, not roll-computed - see
- * docs/known-gaps.md).
- *
- * durationType: "rounds" | "until-condition" | "real-minutes"
+ * On a Mob, every d20-shaped penalty becomes a change to the Mob's static
+ * Difficulty instead (p.60/p.96): Disadvantage is -5 (Advantage +5; they
+ * cancel, and two of the same don't combine), a "-X" penalty is -X, and a
+ * Disadvantaged Mob Attack gives the target a free Evade Check. See
+ * module/helpers/debuff-effects.mjs for both halves.
  * @type {Object}
  */
 CARLRPG.debuffs = {
@@ -356,8 +363,9 @@ CARLRPG.debuffs = {
     label: 'CARLRPG.Debuff.Blinded.Label',
     effect: 'CARLRPG.Debuff.Blinded.Effect',
     mobEffect: 'CARLRPG.Debuff.Blinded.MobEffect',
-    durationType: 'rounds', durationValue: 1,
+    durationType: 'rounds', durationValue: 2,
     stackable: false,
+    mechanics: { disadvantage: 'sight' },
   },
   bloodTrail: {
     label: 'CARLRPG.Debuff.BloodTrail.Label',
@@ -365,6 +373,7 @@ CARLRPG.debuffs = {
     mobEffect: 'CARLRPG.Debuff.BloodTrail.MobEffect',
     durationType: 'until-condition',
     stackable: true,
+    mechanics: { dot: { formula: '1d6 + @floor', damageType: '' } },
   },
   burned: {
     label: 'CARLRPG.Debuff.Burned.Label',
@@ -372,6 +381,7 @@ CARLRPG.debuffs = {
     mobEffect: 'CARLRPG.Debuff.Burned.MobEffect',
     durationType: 'real-minutes', durationValue: 5,
     stackable: false,
+    mechanics: { dot: { formula: '1d10 + @floor', damageType: 'fire' }, endsWithCombat: true },
   },
   drowning: {
     label: 'CARLRPG.Debuff.Drowning.Label',
@@ -379,12 +389,14 @@ CARLRPG.debuffs = {
     mobEffect: 'CARLRPG.Debuff.Drowning.MobEffect',
     durationType: 'until-condition',
     stackable: false,
+    mechanics: { dot: { formula: '1d6 + @floor', damageType: '' } },
   },
   dying: {
     label: 'CARLRPG.Debuff.Dying.Label',
     effect: 'CARLRPG.Debuff.Dying.Effect',
     durationType: 'until-condition',
     stackable: false,
+    mechanics: { countdown: true, noActions: true, endsOnHealing: true },
   },
   enraged: {
     label: 'CARLRPG.Debuff.Enraged.Label',
@@ -398,12 +410,14 @@ CARLRPG.debuffs = {
     mobEffect: 'CARLRPG.Debuff.Fatigued.MobEffect',
     durationType: 'until-condition',
     stackable: true,
+    mechanics: { penalty: 1 },
   },
   held: {
     label: 'CARLRPG.Debuff.Held.Label',
     effect: 'CARLRPG.Debuff.Held.Effect',
     durationType: 'until-condition',
     stackable: false,
+    mechanics: { attackersGainAdvantage: true },
   },
   longTermMajorInjury: {
     label: 'CARLRPG.Debuff.LongTermMajorInjury.Label',
@@ -411,6 +425,7 @@ CARLRPG.debuffs = {
     mobEffect: 'CARLRPG.Debuff.LongTermMajorInjury.MobEffect',
     durationType: 'until-condition',
     stackable: false,
+    mechanics: { penalty: 5 },
   },
   longTermMinorInjury: {
     label: 'CARLRPG.Debuff.LongTermMinorInjury.Label',
@@ -418,6 +433,7 @@ CARLRPG.debuffs = {
     mobEffect: 'CARLRPG.Debuff.LongTermMinorInjury.MobEffect',
     durationType: 'until-condition',
     stackable: false,
+    mechanics: { penalty: 2 },
   },
   majorInjury: {
     label: 'CARLRPG.Debuff.MajorInjury.Label',
@@ -425,6 +441,7 @@ CARLRPG.debuffs = {
     mobEffect: 'CARLRPG.Debuff.MajorInjury.MobEffect',
     durationType: 'until-condition',
     stackable: false,
+    mechanics: { penalty: 5 },
   },
   minorInjury: {
     label: 'CARLRPG.Debuff.MinorInjury.Label',
@@ -432,12 +449,14 @@ CARLRPG.debuffs = {
     mobEffect: 'CARLRPG.Debuff.MinorInjury.MobEffect',
     durationType: 'until-condition',
     stackable: false,
+    mechanics: { penalty: 2 },
   },
   muted: {
     label: 'CARLRPG.Debuff.Muted.Label',
     effect: 'CARLRPG.Debuff.Muted.Effect',
     durationType: 'real-minutes', durationValue: 5,
     stackable: false,
+    mechanics: { noSpells: true, endsWithCombat: true },
   },
   poisoned: {
     label: 'CARLRPG.Debuff.Poisoned.Label',
@@ -445,12 +464,14 @@ CARLRPG.debuffs = {
     mobEffect: 'CARLRPG.Debuff.Poisoned.MobEffect',
     durationType: 'until-condition',
     stackable: true,
+    mechanics: { dot: { formula: '1d8 + @floor', damageType: 'poison' } },
   },
   paralyzed: {
     label: 'CARLRPG.Debuff.Paralyzed.Label',
     effect: 'CARLRPG.Debuff.Paralyzed.Effect',
-    durationType: 'rounds', durationValue: 1,
+    durationType: 'rounds', durationValue: 2,
     stackable: false,
+    mechanics: { noActions: true },
   },
   queasy: {
     label: 'CARLRPG.Debuff.Queasy.Label',
@@ -458,6 +479,7 @@ CARLRPG.debuffs = {
     mobEffect: 'CARLRPG.Debuff.Queasy.MobEffect',
     durationType: 'until-condition',
     stackable: false,
+    mechanics: { disadvantage: 'nextAction', endsAfterAction: true },
   },
   sepsis: {
     label: 'CARLRPG.Debuff.Sepsis.Label',
@@ -465,6 +487,7 @@ CARLRPG.debuffs = {
     mobEffect: 'CARLRPG.Debuff.Sepsis.MobEffect',
     durationType: 'until-condition',
     stackable: false,
+    mechanics: { dot: { formula: '1d10 + @floor', damageType: 'poison' }, alsoApplies: ['staggered'] },
   },
   shitFaced: {
     label: 'CARLRPG.Debuff.ShitFaced.Label',
@@ -472,6 +495,7 @@ CARLRPG.debuffs = {
     mobEffect: 'CARLRPG.Debuff.ShitFaced.MobEffect',
     durationType: 'real-minutes', durationValue: 10,
     stackable: false,
+    mechanics: { disadvantage: 'all' },
   },
   shocked: {
     label: 'CARLRPG.Debuff.Shocked.Label',
@@ -485,6 +509,7 @@ CARLRPG.debuffs = {
     mobEffect: 'CARLRPG.Debuff.SoreAsShit.MobEffect',
     durationType: 'real-minutes', durationValue: 60,
     stackable: false,
+    mechanics: { penalty: 1 },
   },
   staggered: {
     label: 'CARLRPG.Debuff.Staggered.Label',
@@ -492,12 +517,14 @@ CARLRPG.debuffs = {
     mobEffect: 'CARLRPG.Debuff.Staggered.MobEffect',
     durationType: 'until-condition',
     stackable: false,
+    mechanics: { disadvantage: 'nextAttack', endsAfterAction: true },
   },
   stiffLegs: {
     label: 'CARLRPG.Debuff.StiffLegs.Label',
     effect: 'CARLRPG.Debuff.StiffLegs.Effect',
     durationType: 'real-minutes', durationValue: 5,
     stackable: false,
+    mechanics: { endsWithCombat: true },
   },
   stunned: {
     label: 'CARLRPG.Debuff.Stunned.Label',
@@ -505,32 +532,37 @@ CARLRPG.debuffs = {
     mobEffect: 'CARLRPG.Debuff.Stunned.MobEffect',
     durationType: 'until-condition',
     stackable: false,
+    mechanics: { disadvantage: 'nextCheck' },
   },
   takeDown: {
     label: 'CARLRPG.Debuff.TakeDown.Label',
     effect: 'CARLRPG.Debuff.TakeDown.Effect',
     durationType: 'until-condition',
     stackable: false,
+    mechanics: { attackersGainAdvantage: true },
   },
   terrified: {
     label: 'CARLRPG.Debuff.Terrified.Label',
     effect: 'CARLRPG.Debuff.Terrified.Effect',
     mobEffect: 'CARLRPG.Debuff.Terrified.MobEffect',
-    durationType: 'rounds', durationValue: 1,
+    durationType: 'rounds', durationValue: 2,
     stackable: false,
+    mechanics: { disadvantage: 'attack', endsOnHbLoss: true },
   },
   theTaint: {
     label: 'CARLRPG.Debuff.TheTaint.Label',
     effect: 'CARLRPG.Debuff.TheTaint.Effect',
     durationType: 'real-minutes', durationValue: 5,
     stackable: false,
+    mechanics: { noHealing: true, endsWithCombat: true },
   },
   woozy: {
     label: 'CARLRPG.Debuff.Woozy.Label',
     effect: 'CARLRPG.Debuff.Woozy.Effect',
     mobEffect: 'CARLRPG.Debuff.Woozy.MobEffect',
-    durationType: 'rounds', durationValue: 1,
+    durationType: 'rounds', durationValue: 2,
     stackable: false,
+    mechanics: { noDexMod: true },
   },
 };
 

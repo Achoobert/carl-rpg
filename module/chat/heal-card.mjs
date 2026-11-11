@@ -14,6 +14,7 @@
  * an actor picker here; deliberately not built ahead of a real use case.
  */
 import { removeConditionFromActor } from "../helpers/conditions.mjs";
+import { findConditionWithMechanic, conditionLabel } from "../helpers/debuff-effects.mjs";
 import { shortRestUpdates } from "../helpers/rest.mjs";
 import { showCarlDialog, rollButton, cancelButton } from "../apps/carl-dialog.mjs";
 import { updateCardMessage } from "../helpers/chat-socket.mjs";
@@ -76,6 +77,14 @@ export async function onApplyHeal(event, message) {
   const actor = await resolveHealActor(uuid);
   if (!actor) {
     ui.notifications.warn(game.i18n.localize("CARLRPG.Heal.NoActor"));
+    return;
+  }
+
+  // "You can't be healed" (The Taint, Table 11). The button stays live, so
+  // the heal can still be applied once the Taint is gone.
+  const taint = findConditionWithMechanic(actor.system, "noHealing");
+  if (taint) {
+    ui.notifications.warn(game.i18n.format("CARLRPG.Heal.BlockedByDebuff", { name: actor.name, debuff: conditionLabel(taint) }));
     return;
   }
 

@@ -125,9 +125,13 @@ async function onTauntAttack(event, message) {
   const floor = game.settings.get("carl-rpg", "currentFloor");
   const difficulty = 10 + statMod + floor;
 
-  const rollData = await CarlDice.rollOpposedSkillCheck(resolved.actor, tauntItem, { difficulty, skipDialog: false, post: false });
+  // The attacking Mob's own Debuffs lower this Difficulty too (p.96) -
+  // rollOpposedSkillCheck offers them as dialog rows via `opponent`.
+  const rollData = await CarlDice.rollOpposedSkillCheck(resolved.actor, tauntItem, {
+    difficulty, opponent: attackerActor, skipDialog: false, post: false,
+  });
   if (!rollData) return; // Dialog cancelled - nothing to record.
-  const { roll, breakdown, degree } = rollData;
+  const { roll, breakdown, degree, debuffNote } = rollData;
   const success = isHitDegree(degree);
 
   await createRollMessage({
@@ -137,6 +141,7 @@ async function onTauntAttack(event, message) {
     img: resolved.actor.img,
     subtitle: game.i18n.localize(success ? "CARLRPG.Taunt.Success" : "CARLRPG.Taunt.Fail"),
     badge: degreeBadge(degree),
+    body: debuffNote ?? "",
     actor: resolved.actor,
     token: resolved.token,
   });

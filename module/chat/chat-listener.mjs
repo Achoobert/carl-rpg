@@ -24,6 +24,9 @@
  * @property {string} [supersededFlag] Checked only when doneFlag isn't set -
  *   a distinct disabled state for "a later roll made this moot," not "used."
  * @property {() => string} [supersededLabel]
+ * @property {(message: ChatMessage) => string|null} [liveLabel]  innerHTML
+ *   for the still-clickable state when it depends on the message (e.g. "Roll
+ *   Free Evade"); null keeps the template's own label.
  * @property {(event: PointerEvent, message: ChatMessage) => Promise<void>} onClick
  */
 import { damageActionEntries } from "./damage-card.mjs";
@@ -78,6 +81,8 @@ export function registerChatListener() {
       }
       // Else: leave the button live - the delegated click listener below
       // dispatches it.
+      const liveLabel = entry.liveLabel?.(message);
+      if (liveLabel) btn.innerHTML = liveLabel;
     }
 
     html.addEventListener("click", (event) => {

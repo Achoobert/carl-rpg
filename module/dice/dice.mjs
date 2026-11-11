@@ -19,17 +19,28 @@ import { slugifySkillName, collectItemTargetEffects, computeActiveShieldSlots } 
 import { resolveCombatantFor } from "../helpers/token-resolution.mjs";
 import { splitDamageEvenly } from "../helpers/damage-pipeline.mjs";
 import { CARLRPG } from "../helpers/config.mjs";
+import {
+  collectDebuffRows, collectAdvantageAgainstRows, decorateRows, resolveRollerRows, resolveDifficultyRows,
+  buildDebuffNote, consumedConditionIds, endedConditionIds, getActionBlockReason,
+} from "../helpers/debuff-effects.mjs";
+import { removeConditionsById } from "../helpers/conditions.mjs";
 
 /**
  * Net Advantage/Disadvantage don't stack (Playing the Game, p. 60): an
  * inherent Disadvantage (untrained Attack/Utility Skill) and a
- * player-selected Advantage cancel 1-for-1.
+ * player-selected Advantage cancel 1-for-1. Extra sources - a Debuff such
+ * as Shit-Faced, or a target that's Held (module/helpers/
+ * debuff-effects.mjs) - count the same way: "If you have two reasons to roll
+ * with Advantage and one for Disadvantage, one Advantage cancels out the
+ * Disadvantage, leaving you with Advantage" - but never more than one extra
+ * die either way.
  * @param {boolean} inherentDisadvantage
  * @param {"normal"|"advantage"|"disadvantage"} selection
+ * @param {{advantageCount?: number, disadvantageCount?: number}} [extra]
  * @returns {string} "1d20" | "2d20kh" | "2d20kl"
  */
-export function resolveD20Formula(inherentDisadvantage, selection) {
-  let net = 0;
+export function resolveD20Formula(inherentDisadvantage, selection, { advantageCount = 0, disadvantageCount = 0 } = {}) {
+  let net = advantageCount - disadvantageCount;
   if (inherentDisadvantage) net -= 1;
   if (selection === "advantage") net += 1;
   if (selection === "disadvantage") net -= 1;
@@ -294,6 +305,53 @@ function withManaCostSubtitle(subtitle, chosen) {
 }
 
 /**
+ * Shared pre-roll gate: "You can't take any Actions" (Paralyzed, Dying) and
+ * "You can't speak or cast Spells" (Muted) block the roll outright, with a
+ * toast naming the Debuff. Delete the condition to roll anyway.
+ * @param {Actor} actor
+ * @param {{isSpell?: boolean}} [options]
+ * @returns {boolean} true if blocked.
+ */
+function isBlockedByDebuff(actor, { isSpell = false } = {}) {
+  const reason = getActionBlockReason(actor, { isSpell });
+  if (!reason) return false;
+  ui.notifications.warn(reason);
+  return true;
+}
+
+/** Add each Debuff penalty (Minor Injury -2, Woozy's lost DEX Mod, ...) as its own labeled roll term. */
+function addDebuffPenalties(parts, penalties) {
+  for (const p of penalties) parts.add(p.value, p.label);
+}
+
+/**
+ * A Mob stat block's constant "to hit" value (p.267: "Remember to add the
+ * current Floor Number to values with '+F'"), e.g. "16+F" -> 16 + Floor.
+ * @param {string} text
+ * @param {number} floor
+ * @returns {number|null} null if blank or not a plain arithmetic expression.
+ */
+export function evaluateMobConstant(text, floor) {
+  const trimmed = String(text ?? "").trim();
+  if (!trimmed) return null;
+  const expr = trimmed.replace(/\bF\b/g, `(${Number(floor) || 0})`);
+  if (!/^[\d\s+\-*/().]+$/.test(expr)) return null;
+  try {
+    const value = Roll.safeEval(expr);
+    return Number.isFinite(value) ? Math.round(value) : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+/**
+ * Damage types a Shield pool can intercept on a Mob Attack. A blank type
+ * (most stat blocks' claws and bites) counts as physical too; every other
+ * named type counts as magical.
+ */
+const PHYSICAL_DAMAGE_TYPES = new Set(["bludgeoning", "piercing", "slashing"]);
+
+/**
  * An actor's own token, when it has one - same resolution order as
  * module/chat/chat-card.mjs's getCarlSpeaker, so the uuid this produces
  * matches whatever a chat card's speaker already points at. Used for
@@ -307,6 +365,61 @@ function resolveActorToken(actor) {
 }
 
 export default class CarlDice {
+  /**
+   * Stat Check: 1d20 + Stat Mod (the sheet's Stats column). Goes through the
+   * same Debuff gate/rows/consumption as every other crawler roll, so Minor
+   * Injury's -2, Shit-Faced's Disadvantage, Paralyzed's block, etc. apply.
+   * @param {Actor} actor
+   * @param {string} statKey  e.g. "str", "con".
+   * @param {{difficulty?: number|null, skipDialog?: boolean}} [options]
+   * @returns {Promise<ChatMessage|null>}
+   */
+  static async rollStatCheck(actor, statKey, { difficulty = null, skipDialog = false } = {}) {
+    const sys = actor.system;
+    const stat = sys.stats?.[statKey];
+    if (!stat) return null;
+    if (isBlockedByDebuff(actor)) return null;
+
+    const statLabel = stat.label || game.i18n.localize(CARLRPG.stats[statKey] ?? statKey);
+    const debuffRows = decorateRows(collectDebuffRows(sys, "check"), "roll");
+
+    let options = { advantage: "normal", difficulty, modifier: 0, checkedDebuffs: null };
+    if (!skipDialog) {
+      const prompted = await promptRollOptions({
+        title: game.i18n.format("CARLRPG.Dialog.StatCheckTitle", { name: statLabel }),
+        difficulty,
+        showDifficulty: true,
+        debuffRows,
+      });
+      if (!prompted) return null;
+      options = prompted;
+    }
+
+    const debuffEffect = resolveRollerRows(debuffRows, options.checkedDebuffs);
+    const parts = new RollParts(actor.getRollData());
+    parts.add(resolveD20Formula(false, options.advantage, debuffEffect), game.i18n.localize("CARLRPG.Roll.Die"));
+    parts.add(stat.mod ?? 0, game.i18n.localize(CARLRPG.statAbbreviations[statKey] ?? statKey));
+    addDebuffPenalties(parts, debuffEffect.penalties);
+    parts.add(options.modifier, game.i18n.localize("CARLRPG.Roll.Situational"));
+
+    const { roll, total, breakdown } = await parts.evaluate();
+    const naturalRoll = extractNaturalD20(roll);
+    const degree = getDegreeOfSuccess(naturalRoll, total, options.difficulty);
+
+    await removeConditionsById(actor, endedConditionIds(sys, debuffEffect.applied));
+
+    return createRollMessage({
+      rolls: [roll],
+      rollMeta: [{ label: statLabel, breakdown }],
+      title: statLabel,
+      subtitle: game.i18n.localize(CARLRPG.degreesOfSuccess[degree]),
+      img: actor.img,
+      badge: degreeBadge(degree),
+      body: buildDebuffNote(debuffEffect.applied),
+      actor,
+    });
+  }
+
   /**
    * Skill Check: 1d20 (2d20kl if untrained Attack/Utility) + Rank + Stat Mod.
    * Passive Skills can't be Checked at all; Spells can't be attempted
@@ -329,18 +442,21 @@ export default class CarlDice {
       ui.notifications.warn(game.i18n.format("CARLRPG.Warning.CannotCastUntrained", { name: skillItem.name }));
       return null;
     }
+    if (isBlockedByDebuff(actor, { isSpell: skillItem.type === "spell" })) return null;
 
     const rollData = actor.getRollData();
     const conditionalModifiers = collectApplicableConditionalModifiers(sys, skillItem.name);
     const manaCostChoices = skillItem.type === "spell" ? buildManaCostChoices(skillItem) : [];
+    const debuffRows = decorateRows(collectDebuffRows(sys, "check"), "roll");
 
-    let options = { advantage: "normal", difficulty: null, modifier: 0, checked: new Set(), manaCostChoice: 0 };
+    let options = { advantage: "normal", difficulty: null, modifier: 0, checked: new Set(), manaCostChoice: 0, checkedDebuffs: null };
     if (!skipDialog) {
       const prompted = await promptRollOptions({
         title: game.i18n.format("CARLRPG.Dialog.SkillCheckTitle", { name: skillItem.name }),
         showDifficulty: true,
         conditionalModifiers,
         manaCostChoices,
+        debuffRows,
       });
       if (!prompted) return null;
       options = prompted;
@@ -349,11 +465,13 @@ export default class CarlDice {
     const untrained = rank === 0;
     const statKey = skillSys.governingStat;
     const statMod = statKey ? (sys.stats?.[statKey]?.mod ?? 0) : 0;
+    const debuffEffect = resolveRollerRows(debuffRows, options.checkedDebuffs);
 
     const parts = new RollParts(rollData);
-    parts.add(resolveD20Formula(untrained, options.advantage), game.i18n.localize("CARLRPG.Roll.Die"));
+    parts.add(resolveD20Formula(untrained, options.advantage, debuffEffect), game.i18n.localize("CARLRPG.Roll.Die"));
     if (!untrained) parts.add(rank, game.i18n.localize("CARLRPG.Roll.SkillRank"));
     if (statKey) parts.add(statMod, game.i18n.localize(CARLRPG.statAbbreviations[statKey] ?? statKey));
+    addDebuffPenalties(parts, debuffEffect.penalties);
     parts.add(options.modifier, game.i18n.localize("CARLRPG.Roll.Situational"));
     applyCheckedConditionalModifiers(parts, conditionalModifiers, options.checked, ["skillRank", "stat", "rollMode", "custom"]);
 
@@ -361,6 +479,7 @@ export default class CarlDice {
     const naturalRoll = extractNaturalD20(roll);
     const degree = getDegreeOfSuccess(naturalRoll, total, options.difficulty);
 
+    await removeConditionsById(actor, endedConditionIds(sys, debuffEffect.applied));
     await CarlDice.markForAdvancement(skillItem);
 
     const chosenManaCost = skillItem.type === "spell" ? resolveManaCost(skillItem, manaCostChoices, options.manaCostChoice, actor) : null;
@@ -373,6 +492,7 @@ export default class CarlDice {
       subtitle: withManaCostSubtitle(game.i18n.localize(CARLRPG.degreesOfSuccess[degree]), chosenManaCost),
       img: skillItem.img,
       badge: degreeBadge(degree),
+      body: buildDebuffNote(debuffEffect.applied),
       actor,
     });
   }
@@ -391,6 +511,7 @@ export default class CarlDice {
     const skillSys = skillItem.system;
     const skillEntry = sys.skills?.[slugifySkillName(skillItem.name)];
     const rank = skillEntry?.rank ?? skillSys.rank ?? 0;
+    if (isBlockedByDebuff(actor, { isSpell: skillItem.type === "spell" })) return null;
 
     // Snapshot targets NOW, at roll time - not at chat-card-click time. The
     // "Apply to Target(s)" button (module/chat/target-effects-card.mjs)
@@ -401,16 +522,27 @@ export default class CarlDice {
     const target = targets[0] ?? null;
     const targetUuids = targets.map((t) => t.document?.uuid).filter(Boolean);
     let targetDifficulty = null;
+    // Debuff rows (module/helpers/debuff-effects.mjs): the target's own
+    // Debuffs adjust the Difficulty this Attack rolls against, and a Held/
+    // Taken Down target gives this Attack Advantage.
+    let targetRows = [];
+    let advantageRows = [];
     if (target?.actor) {
       const targetSys = target.actor.system;
-      // Woozy ("Can't add DEX Mod to Attack or Evade Checks") is the one
-      // Debuff with a real mechanical hook here rather than just re-worded
-      // text (see CONFIG.CARLRPG.debuffs' docstring) - it explicitly names
-      // Evade, which for this target IS a live-computed Difficulty.
-      const isWoozy = (targetSys.conditions ?? []).some((c) => c.key === "woozy");
-      const dexMod = isWoozy ? 0 : (targetSys.stats?.dex?.mod ?? 0);
       const floor = game.settings.get("carl-rpg", "currentFloor");
-      targetDifficulty = 10 + dexMod + floor;
+      targetDifficulty = 10 + (targetSys.stats?.dex?.mod ?? 0) + floor;
+      const ownerName = target.actor.name;
+      // A Mob's Evade is a static Difficulty, so every one of its Debuffs
+      // that would touch a d20 Evade lowers it instead (p.96 - Disadvantage
+      // -5, "-X" -X). A Character target's static Evade only loses its DEX
+      // Mod to Woozy; the rest of a crawler's Debuffs apply to their own
+      // Evade roll if they actively defend (module/chat/evade-link-card.mjs).
+      const evadeRows = collectDebuffRows(targetSys, "evade", { ownerName, idPrefix: "target", ownAction: false });
+      targetRows = decorateRows(
+        target.actor.type === "character" ? evadeRows.filter((r) => r.kind === "noDex") : evadeRows,
+        "difficulty",
+      );
+      advantageRows = decorateRows(collectAdvantageAgainstRows(targetSys, { ownerName, idPrefix: "target" }), "roll");
     }
 
     // The attacking token's own uuid (same convention as targetUuids above) -
@@ -461,19 +593,22 @@ export default class CarlDice {
     );
 
     const manaCostChoices = skillItem.type === "spell" ? buildManaCostChoices(skillItem) : [];
+    const rollerRows = decorateRows(collectDebuffRows(sys, "attack", { usesDex: skillSys.governingStat === "dex" }), "roll");
 
     let options = {
       advantage: advantageEntitled ? "advantage" : "normal",
-      difficulty: targetDifficulty, modifier: 0, checked: new Set(), manaCostChoice: 0,
+      difficulty: targetDifficulty, modifier: 0, checked: new Set(), manaCostChoice: 0, checkedDebuffs: null,
     };
     if (!skipDialog) {
       const prompted = await promptRollOptions({
         title: game.i18n.format("CARLRPG.Dialog.AttackTitle", { name: skillItem.name }),
         difficulty: targetDifficulty,
+        difficultyLabel: targetRows.length ? game.i18n.localize("CARLRPG.Dialog.BaseDifficulty") : null,
         defaultAdvantage: advantageEntitled ? "advantage" : null,
         conditionalModifiers,
         damageEffectChoices,
         manaCostChoices,
+        debuffRows: [...rollerRows, ...advantageRows, ...targetRows],
       });
       if (!prompted) return null;
       options = prompted;
@@ -481,7 +616,12 @@ export default class CarlDice {
         damageEffectItem = actor.items.get(prompted.damageEffectId) ?? damageEffectItem;
       }
     }
-    const difficulty = options.difficulty ?? targetDifficulty;
+    // The dialog's Difficulty field is the BASE value (still GM-editable,
+    // e.g. to type in a printed Evade); the target's Debuff rows ticked in
+    // the dialog adjust it from there.
+    const rollerEffect = resolveRollerRows([...rollerRows, ...advantageRows], options.checkedDebuffs);
+    const targetEffect = resolveDifficultyRows(options.difficulty ?? targetDifficulty, targetRows, options.checkedDebuffs);
+    const difficulty = targetEffect.difficulty;
 
     // Defensive re-check: the choices list above already keeps a Rank-0
     // Damage Effect out of the dropdown, but a non-dialog caller could still
@@ -514,9 +654,10 @@ export default class CarlDice {
     const statMod = statKey ? (sys.stats?.[statKey]?.mod ?? 0) : 0;
 
     const attackParts = new RollParts(rollData);
-    attackParts.add(resolveD20Formula(untrained, options.advantage), game.i18n.localize("CARLRPG.Roll.Die"));
+    attackParts.add(resolveD20Formula(untrained, options.advantage, rollerEffect), game.i18n.localize("CARLRPG.Roll.Die"));
     if (!untrained) attackParts.add(rank, game.i18n.localize("CARLRPG.Roll.SkillRank"));
     if (statKey) attackParts.add(statMod, game.i18n.localize(CARLRPG.statAbbreviations[statKey] ?? statKey));
+    addDebuffPenalties(attackParts, rollerEffect.penalties);
     attackParts.add(options.modifier, game.i18n.localize("CARLRPG.Roll.Situational"));
     applyCheckedConditionalModifiers(attackParts, activeConditionalModifiers, options.checked, ["skillRank", "stat", "rollMode", "custom"]);
 
@@ -533,6 +674,12 @@ export default class CarlDice {
     if (advantageEntitled && actingCombatant?.canUserModify(game.user, "update")) {
       await actingCombatant.unsetFlag("carl-rpg", "advantageVsUuid");
     }
+
+    // One-shot Debuffs that just shaped this roll are spent (Stunned's
+    // "once you make a Check", Staggered's "your next Action") - on the
+    // attacker, and on a Mob target whose Difficulty they lowered.
+    await removeConditionsById(actor, endedConditionIds(sys, rollerEffect.applied));
+    if (target?.actor) await removeConditionsById(target.actor, consumedConditionIds(targetEffect.applied));
 
     // "When you make an Attack that adds a Damage Effect, place a mark for
     // later Skill Advancement in either the Attack Skill or the Damage
@@ -664,7 +811,135 @@ export default class CarlDice {
       subtitle: withManaCostSubtitle(game.i18n.localize(CARLRPG.degreesOfSuccess[degree]), chosenManaCost),
       img: skillItem.img,
       badge: degreeBadge(degree),
+      body: buildDebuffNote([...rollerEffect.applied, ...targetEffect.applied]),
       footer,
+      flags,
+      actor,
+    });
+  }
+
+  /**
+   * A Mob's printed Attack (module/data/mob.mjs's `attacks` list) against
+   * the targeted crawler(s). "Mobs are player-facing; they never roll"
+   * (p.267): the "to hit" value IS the Difficulty of the target's Evade
+   * Check, and the GM rolls only the damage (Step 3: Mob Action Resolution,
+   * p.82). The Difficulty is adjusted by the attacking Mob's own Debuffs and
+   * by a Held/Taken-Down defender (p.60/p.96 - module/helpers/
+   * debuff-effects.mjs), and a net-Disadvantaged Attack gives the target a
+   * free Evade Check (the `freeEvade` flag - module/chat/
+   * evade-link-card.mjs). The card carries the same flag shape rollAttack
+   * does, so Roll Evade / Taunt / Apply Damage work on it unchanged.
+   * @param {Actor} actor  The attacking Mob.
+   * @param {number} attackIndex  Index into actor.system.attacks.
+   * @param {{skipDialog?: boolean}} [options]
+   * @returns {Promise<ChatMessage|null>}
+   */
+  static async rollMobAttack(actor, attackIndex, { skipDialog = false } = {}) {
+    const attack = actor.system.attacks?.[attackIndex];
+    if (!attack) return null;
+    if (isBlockedByDebuff(actor)) return null;
+
+    const targets = Array.from(game.user.targets ?? []);
+    const target = targets[0] ?? null;
+    const targetUuids = targets.map((t) => t.document?.uuid).filter(Boolean);
+    const floor = game.settings.get("carl-rpg", "currentFloor");
+    const baseToHit = evaluateMobConstant(attack.toHit, floor);
+    const attackName = attack.name || game.i18n.localize("CARLRPG.MobAttack.Unnamed");
+
+    // The stat block doesn't say whether a to-hit includes the DEX Mod, so
+    // Woozy is offered but left unticked here.
+    const ownRows = collectDebuffRows(actor.system, "attack", { usesDex: true, ownerName: actor.name, idPrefix: "self" })
+      .map((r) => (r.kind === "noDex" ? { ...r, defaultOn: false } : r));
+    const defenderRows = target?.actor
+      ? collectAdvantageAgainstRows(target.actor.system, { ownerName: target.actor.name, idPrefix: "target" })
+      : [];
+    const debuffRows = decorateRows([...ownRows, ...defenderRows], "difficulty");
+
+    let options = { difficulty: baseToHit, modifier: 0, checkedDebuffs: null };
+    if (!skipDialog) {
+      const prompted = await promptRollOptions({
+        title: game.i18n.format("CARLRPG.MobAttack.DialogTitle", { name: attackName }),
+        difficulty: baseToHit,
+        difficultyLabel: game.i18n.localize("CARLRPG.MobAttack.ToHitLabel"),
+        showRollMode: false,
+        debuffRows,
+      });
+      if (!prompted) return null;
+      options = prompted;
+    }
+    const base = options.difficulty ?? baseToHit;
+    const resolved = resolveDifficultyRows(base === null ? null : base + (options.modifier || 0), debuffRows, options.checkedDebuffs);
+    const difficulty = resolved.difficulty;
+    const freeEvade = resolved.netAdvantage < 0 && targetUuids.length > 0;
+
+    // Damage: the printed formula, "+F" resolved to the current Floor.
+    const rolls = [];
+    const rollMeta = [];
+    const damageByType = {};
+    const damageType = attack.damageType || "";
+    if (attack.damage?.trim()) {
+      const parts = new RollParts(actor.getRollData());
+      parts.add(attack.damage.replace(/\bF\b/g, "@floor"), attackName);
+      let evaluated;
+      try {
+        evaluated = await parts.evaluate();
+      } catch (err) {
+        ui.notifications.warn(game.i18n.format("CARLRPG.MobAttack.BadDamage", { formula: attack.damage }));
+        return null;
+      }
+      rolls.push(evaluated.roll);
+      rollMeta.push({
+        label: damageRowLabel(damageType ? [damageType] : []),
+        detail: target?.actor ? `vs. ${target.actor.name}` : "",
+        breakdown: evaluated.breakdown,
+      });
+      damageByType[damageType] = evaluated.total;
+    }
+
+    // With nothing targeted this is a preview (no Evade button, no free
+    // Evade), so the Mob's one-shot Debuffs aren't spent on it.
+    if (targetUuids.length) await removeConditionsById(actor, endedConditionIds(actor.system, resolved.applied));
+
+    const hasDamage = Object.values(damageByType).some((v) => v);
+    const flags = {};
+    const footerParts = [];
+    if (targetUuids.length) flags.targetUuids = targetUuids;
+    if (hasDamage) {
+      flags.damageByType = damageByType;
+      // Mob stat blocks don't mark an Attack magical or not; blank and
+      // physical damage types are treated as non-magic (a Shield pool can
+      // absorb them - docs/known-gaps.md 1.4), every other type as magic.
+      flags.damageIsMagic = !!damageType && !PHYSICAL_DAMAGE_TYPES.has(damageType);
+      footerParts.push(await buildDamageFooter(damageByType));
+    }
+    if (targetUuids.length) {
+      flags.attackTotal = difficulty;
+      flags.targetDifficulty = difficulty;
+      flags.attackerType = actor.type;
+      flags.attackerUuid = resolveActorToken(actor)?.uuid ?? actor.uuid;
+      if (freeEvade) flags.freeEvade = true;
+      footerParts.push(await buildEvadeLinkFooter());
+      footerParts.push(await buildTauntLinkFooter());
+    }
+
+    const esc = foundry.utils.escapeHTML;
+    let body = "";
+    if (attack.effect) body += `<p class="carl-mob-attack-effect"><em>${esc(attack.effect)}</em></p>`;
+    if (attack.range) body += `<p class="carl-mob-attack-range">${esc(game.i18n.localize("CARLRPG.Attack.Range"))}: ${esc(attack.range)}</p>`;
+    body += buildDebuffNote(resolved.applied);
+    if (freeEvade) body += `<p class="carl-free-evade-note"><i class="fas fa-person-running"></i> ${game.i18n.localize("CARLRPG.MobAttack.FreeEvadeNote")}</p>`;
+
+    const subtitle = difficulty === null
+      ? game.i18n.localize("CARLRPG.MobAttack.NoToHit")
+      : game.i18n.format("CARLRPG.MobAttack.Subtitle", { difficulty });
+
+    return createRollMessage({
+      rolls, rollMeta,
+      title: attackName,
+      subtitle,
+      img: actor.img,
+      body,
+      footer: footerParts.length ? footerParts.join("") : undefined,
       flags,
       actor,
     });
@@ -743,6 +1018,7 @@ export default class CarlDice {
   static async rollHeal(actor, skillItem) {
     const skillSys = skillItem.system;
     const rank = skillSys.rank ?? 0;
+    if (isBlockedByDebuff(actor, { isSpell: skillItem.type === "spell" })) return null;
 
     const unlocked = (skillSys.upgrades ?? [])
       .filter((u) => rank >= u.rankThreshold)
@@ -752,6 +1028,7 @@ export default class CarlDice {
     const canMend = unlocked.some((u) => u.healMend);
     const formula = diceTier?.healDice || skillSys.healDice || "1d4";
 
+    await removeConditionsById(actor, endedConditionIds(actor.system, []));
     await CarlDice.markForAdvancement(skillItem);
 
     // Casting always spends Mana, whether or not the tier rolls dice
@@ -815,6 +1092,7 @@ export default class CarlDice {
     let manaCostSpent = null;
 
     if (turningOn) {
+      if (isBlockedByDebuff(actor, { isSpell: skillItem.type === "spell" })) return null;
       const rank = skillSys.rank ?? 0;
       if (rank === 0) {
         ui.notifications.warn(game.i18n.format("CARLRPG.Warning.CannotCastUntrained", { name: skillItem.name }));
@@ -822,6 +1100,7 @@ export default class CarlDice {
       }
       manaCostSpent = applyFavoredClassSurcharge(skillItem, actor, skillSys.manaCost);
       await applyManaCost(actor, manaCostSpent);
+      await removeConditionsById(actor, endedConditionIds(actor.system, []));
     }
 
     await skillItem.update({ "system.active": turningOn });
@@ -855,7 +1134,9 @@ export default class CarlDice {
    * total). Surfaces Major/Critical Fail consequences as GM-facing text -
    * NOT auto-applied, per this project's "GM judgment call" instruction.
    * @param {Actor} actor
-   * @param {{difficulty?: number|null, skipDialog?: boolean, post?: boolean}} [options]
+   * @param {{difficulty?: number|null, skipDialog?: boolean, post?: boolean, isAction?: boolean}} [options]
+   *   isAction (default true): false for a free Evade (p.96), which neither
+   *   triggers nor ends a "next Action" Debuff (Queasy, Staggered).
    *   post (default true): when false, don't post a ChatMessage - return the
    *   raw roll data instead, so a caller (module/chat/evade-link-card.mjs)
    *   can fold this roll into ITS OWN combined roll+outcome card instead of
@@ -865,17 +1146,20 @@ export default class CarlDice {
    * @returns {Promise<ChatMessage|{roll: Roll, total: number, breakdown: string, naturalRoll: number|null, degree: string}|null>}
    *   null if the roll-options dialog was cancelled, regardless of `post`.
    */
-  static async rollEvadeCheck(actor, { difficulty = null, skipDialog = false, post = true } = {}) {
+  static async rollEvadeCheck(actor, { difficulty = null, skipDialog = false, post = true, isAction = true } = {}) {
     const sys = actor.system;
+    if (isBlockedByDebuff(actor)) return null;
     const rollData = actor.getRollData();
     const conditionalModifiers = collectApplicableConditionalModifiers(sys, "evade");
+    const debuffRows = decorateRows(collectDebuffRows(sys, "evade", { ownAction: isAction }), "roll");
 
-    let options = { advantage: "normal", difficulty, modifier: 0, checked: new Set() };
+    let options = { advantage: "normal", difficulty, modifier: 0, checked: new Set(), checkedDebuffs: null };
     if (!skipDialog) {
       const prompted = await promptRollOptions({
         title: game.i18n.localize("CARLRPG.Dialog.EvadeTitle"),
         difficulty,
         conditionalModifiers,
+        debuffRows,
       });
       if (!prompted) return null;
       options = prompted;
@@ -883,23 +1167,28 @@ export default class CarlDice {
 
     const dexMod = sys.stats?.dex?.mod ?? 0;
     const evadeBonus = sys.bonuses?.evadeBonus ?? 0;
+    const debuffEffect = resolveRollerRows(debuffRows, options.checkedDebuffs);
 
     const parts = new RollParts(rollData);
-    parts.add(resolveD20Formula(false, options.advantage), game.i18n.localize("CARLRPG.Roll.Die"));
+    parts.add(resolveD20Formula(false, options.advantage, debuffEffect), game.i18n.localize("CARLRPG.Roll.Die"));
     parts.add(dexMod, game.i18n.localize(CARLRPG.statAbbreviations.dex));
     parts.add(evadeBonus, game.i18n.localize("CARLRPG.Roll.EvadeBonus"));
+    addDebuffPenalties(parts, debuffEffect.penalties);
     parts.add(options.modifier, game.i18n.localize("CARLRPG.Roll.Situational"));
     applyCheckedConditionalModifiers(parts, conditionalModifiers, options.checked, ["stat", "rollMode", "custom"]);
 
     const { roll, total, breakdown } = await parts.evaluate();
     const naturalRoll = extractNaturalD20(roll);
     const degree = getDegreeOfSuccess(naturalRoll, total, options.difficulty);
+    const debuffNote = buildDebuffNote(debuffEffect.applied);
 
-    if (!post) return { roll, total, breakdown, naturalRoll, degree };
+    await removeConditionsById(actor, endedConditionIds(sys, debuffEffect.applied, { isAction }));
 
-    let body = "";
-    if (degree === "majorFail") body = `<p>${game.i18n.localize("CARLRPG.Roll.EvadeMajorFail")}</p>`;
-    else if (degree === "criticalFail") body = `<p>${game.i18n.localize("CARLRPG.Roll.EvadeCriticalFail")}</p>`;
+    if (!post) return { roll, total, breakdown, naturalRoll, degree, debuffNote };
+
+    let body = debuffNote;
+    if (degree === "majorFail") body += `<p>${game.i18n.localize("CARLRPG.Roll.EvadeMajorFail")}</p>`;
+    else if (degree === "criticalFail") body += `<p>${game.i18n.localize("CARLRPG.Roll.EvadeCriticalFail")}</p>`;
 
     return createRollMessage({
       rolls: [roll],
@@ -926,14 +1215,17 @@ export default class CarlDice {
    * project's precedent for reusable infrastructure (resolveActingActor).
    * @param {Actor} actor
    * @param {Item} skillItem  An Opposed-Check Skill (e.g. Taunt).
-   * @param {{difficulty?: number|null, skipDialog?: boolean, post?: boolean}} [options]
+   * @param {{difficulty?: number|null, opponent?: Actor|null, skipDialog?: boolean, post?: boolean}} [options]
+   *   opponent: the creature whose static number `difficulty` is. When it's
+   *   a Mob, its Debuffs adjust that Difficulty (p.96 - module/helpers/
+   *   debuff-effects.mjs), offered as dialog rows like rollAttack's target.
    *   post (default true): when false, return the raw roll data instead of
    *   posting a ChatMessage, so a caller can fold this roll into its own
    *   follow-up handling (see rollEvadeCheck's identical option).
    * @returns {Promise<ChatMessage|{roll: Roll, total: number, breakdown: string, naturalRoll: number|null, degree: string}|null>}
    *   null if the roll-options dialog was cancelled, regardless of `post`.
    */
-  static async rollOpposedSkillCheck(actor, skillItem, { difficulty = null, skipDialog = false, post = true } = {}) {
+  static async rollOpposedSkillCheck(actor, skillItem, { difficulty = null, opponent = null, skipDialog = false, post = true } = {}) {
     const sys = actor.system;
     const skillSys = skillItem.system;
     const skillEntry = sys.skills?.[slugifySkillName(skillItem.name)];
@@ -943,40 +1235,53 @@ export default class CarlDice {
       ui.notifications.warn(game.i18n.format("CARLRPG.Warning.PassiveNoCheck", { name: skillItem.name }));
       return null;
     }
+    if (isBlockedByDebuff(actor, { isSpell: skillItem.type === "spell" })) return null;
 
     const rollData = actor.getRollData();
     const conditionalModifiers = collectApplicableConditionalModifiers(sys, skillItem.name);
+    const rollerRows = decorateRows(collectDebuffRows(sys, "check"), "roll");
+    const opponentRows = opponent && opponent.type !== "character"
+      ? decorateRows(collectDebuffRows(opponent.system, "check", { ownerName: opponent.name, idPrefix: "opp", ownAction: false }), "difficulty")
+      : [];
 
-    let options = { advantage: "normal", difficulty, modifier: 0, checked: new Set() };
+    let options = { advantage: "normal", difficulty, modifier: 0, checked: new Set(), checkedDebuffs: null };
     if (!skipDialog) {
       const prompted = await promptRollOptions({
         title: game.i18n.format("CARLRPG.Dialog.OpposedCheckTitle", { name: skillItem.name }),
         difficulty,
+        difficultyLabel: opponentRows.length ? game.i18n.localize("CARLRPG.Dialog.BaseDifficulty") : null,
         conditionalModifiers,
+        debuffRows: [...rollerRows, ...opponentRows],
       });
       if (!prompted) return null;
       options = prompted;
     }
-    const finalDifficulty = options.difficulty ?? difficulty;
+    const rollerEffect = resolveRollerRows(rollerRows, options.checkedDebuffs);
+    const opponentEffect = resolveDifficultyRows(options.difficulty ?? difficulty, opponentRows, options.checkedDebuffs);
+    const finalDifficulty = opponentEffect.difficulty;
 
     const untrained = rank === 0;
     const statKey = skillSys.governingStat;
     const statMod = statKey ? (sys.stats?.[statKey]?.mod ?? 0) : 0;
 
     const parts = new RollParts(rollData);
-    parts.add(resolveD20Formula(untrained, options.advantage), game.i18n.localize("CARLRPG.Roll.Die"));
+    parts.add(resolveD20Formula(untrained, options.advantage, rollerEffect), game.i18n.localize("CARLRPG.Roll.Die"));
     if (!untrained) parts.add(rank, game.i18n.localize("CARLRPG.Roll.SkillRank"));
     if (statKey) parts.add(statMod, game.i18n.localize(CARLRPG.statAbbreviations[statKey] ?? statKey));
+    addDebuffPenalties(parts, rollerEffect.penalties);
     parts.add(options.modifier, game.i18n.localize("CARLRPG.Roll.Situational"));
     applyCheckedConditionalModifiers(parts, conditionalModifiers, options.checked, ["skillRank", "stat", "rollMode", "custom"]);
 
     const { roll, total, breakdown } = await parts.evaluate();
     const naturalRoll = extractNaturalD20(roll);
     const degree = getDegreeOfSuccess(naturalRoll, total, finalDifficulty);
+    const debuffNote = buildDebuffNote([...rollerEffect.applied, ...opponentEffect.applied]);
 
+    await removeConditionsById(actor, endedConditionIds(sys, rollerEffect.applied));
+    if (opponent) await removeConditionsById(opponent, consumedConditionIds(opponentEffect.applied));
     await CarlDice.markForAdvancement(skillItem);
 
-    if (!post) return { roll, total, breakdown, naturalRoll, degree };
+    if (!post) return { roll, total, breakdown, naturalRoll, degree, debuffNote };
 
     return createRollMessage({
       rolls: [roll],
@@ -985,6 +1290,7 @@ export default class CarlDice {
       subtitle: game.i18n.localize(CARLRPG.degreesOfSuccess[degree]),
       img: skillItem.img,
       badge: degreeBadge(degree),
+      body: debuffNote,
       actor,
     });
   }

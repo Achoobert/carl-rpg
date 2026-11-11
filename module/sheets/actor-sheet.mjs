@@ -6,6 +6,7 @@ import { addConditionToActor } from '../helpers/conditions.mjs';
 import DragDropMixin from './mixins/drag-drop-mixin.mjs';
 import CarlSpendStatPointsDialog from '../apps/spend-stat-points-dialog.mjs';
 import { injectBloodSplatter } from '../helpers/window-chrome.mjs';
+import CarlDice from '../dice/dice.mjs';
 
 /**
  * Extend the basic ActorSheet with some very simple modifications
@@ -27,6 +28,8 @@ export class CarlRPGActorSheet extends DragDropMixin(HandlebarsApplicationMixin(
       deleteItem: CarlRPGActorSheet.#deleteItem,
       roll: CarlRPGActorSheet.#onRoll,
       rollEvade: CarlRPGActorSheet.#onRollEvade,
+      rollMobAttack: CarlRPGActorSheet.#onRollMobAttack,
+      rollStat: CarlRPGActorSheet.#onRollStat,
       toggleMark: CarlRPGActorSheet.#onToggleMark,
       toggleEquipped: CarlRPGActorSheet.#onToggleEquipped,
       addCondition: CarlRPGActorSheet.#onAddCondition,
@@ -374,6 +377,26 @@ export class CarlRPGActorSheet extends DragDropMixin(HandlebarsApplicationMixin(
   static #onRollEvade(event, target) {
     event.preventDefault();
     return this.actor.rollEvadeCheck();
+  }
+
+  /**
+   * Stat Check from the Stats column - CarlDice.rollStatCheck, so Debuffs
+   * apply (templates/actor/parts/stats-column.hbs).
+   * @private
+   */
+  static #onRollStat(event, target) {
+    event.preventDefault();
+    return CarlDice.rollStatCheck(this.actor, target.dataset.stat);
+  }
+
+  /**
+   * Make one of a Mob's printed Attacks against the user's targets - see
+   * CarlDice.rollMobAttack (templates/actor/parts/attacks-list.hbs).
+   * @private
+   */
+  static #onRollMobAttack(event, target) {
+    event.preventDefault();
+    return CarlDice.rollMobAttack(this.actor, Number(target.dataset.index));
   }
 
   /**

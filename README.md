@@ -20,6 +20,11 @@ the rulebook's publisher, Renegade Game Studios. Use at your own risk.
 - Roll flows for Skill Checks, Attacks (with a Damage Effect picker and
   Mana-cost-variant support), Heals, and Evade Checks, each with an
   apply-on-click chat card
+- Rollable Mob Attacks (printed to-hit as the Evade Difficulty, with a free
+  Evade against a Disadvantaged Attack)
+- Automated Debuffs: penalties and Advantage/Disadvantage on crawler rolls,
+  Mob Difficulties adjusted per the Debuffs-on-Mobs rules, and end-of-round
+  damage, countdowns and expiry
 - A GM Toolbox for party-wide rests and floor tracking
 - RollTables for loot and encounter content
 

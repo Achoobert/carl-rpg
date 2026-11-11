@@ -526,6 +526,25 @@
   margin: 0;
   padding-left: 1.25em;
 }
+.carl-chat-card .carl-debuff-note,
+.carl-chat-card .carl-free-evade-note {
+  margin: 4px 0;
+  font-size: 11px;
+  color: var(--carl-text-muted);
+}
+.carl-chat-card .carl-debuff-note i,
+.carl-chat-card .carl-free-evade-note i {
+  color: var(--carl-danger);
+  margin-right: 2px;
+}
+.carl-chat-card .carl-free-evade-note {
+  font-weight: 700;
+  color: var(--carl-text);
+}
+.carl-chat-card .carl-round-end-list {
+  margin: 4px 0;
+  padding-left: 1.25em;
+}
 
 .carl-dialog .carl-dialog-body {
   display: flex;
@@ -1262,6 +1281,10 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+.carl-rpg .carl-debuffed-marker {
+  font-size: 10px;
+  color: var(--carl-danger);
 }
 .carl-rpg .carl-attacks-list .item-name {
   flex: 2;

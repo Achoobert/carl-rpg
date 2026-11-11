@@ -21,6 +21,12 @@
     align-items: center;
   }
 
+  // Shown beside Surprise/Evade when the Mob's Debuffs adjusted the value.
+  .carl-debuffed-marker {
+    font-size: 10px;
+    color: var(--carl-danger);
+  }
+
   .carl-attacks-list {
     .item-name { flex: 2; }
     .carl-attack-tohit,

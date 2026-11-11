@@ -1,5 +1,6 @@
 import { CarlRPGActor } from './documents/actor.mjs';
 import { CarlRPGItem } from './documents/item.mjs';
+import { CarlRPGCombat } from './documents/combat.mjs';
 import { CarlRPGActorSheet } from './sheets/actor-sheet.mjs';
 import { CarlRPGItemSheet } from './sheets/item-sheet.mjs';
 import { preloadHandlebarsTemplates } from './helpers/templates.mjs';
@@ -98,6 +99,8 @@ Hooks.once('init', function () {
     formula: '1d20 + @stats.dex.mod',
     decimals: 2,
   };
+  // End-of-round/end-of-combat Debuff automation (module/helpers/round-end.mjs).
+  CONFIG.Combat.documentClass = CarlRPGCombat;
 
   CONFIG.Actor.documentClass = CarlRPGActor;
   Object.assign(CONFIG.Actor.dataModels, {

@@ -8,9 +8,10 @@ export default function register(quench) {
 
       describe("buildConditionEntry", function () {
         it("resolves a timed-duration preset's initial remaining value", function () {
-          // paralyzed: CONFIG.CARLRPG.debuffs durationType "rounds", durationValue 1.
+          // paralyzed: CONFIG.CARLRPG.debuffs durationType "rounds", durationValue 2
+          // ("until the end of the next round" = two end-of-round ticks).
           const entry = buildConditionEntry("paralyzed");
-          assert.equal(entry.remaining, 1);
+          assert.equal(entry.remaining, 2);
         });
 
         it("an until-condition preset has no countdown (remaining: null)", function () {

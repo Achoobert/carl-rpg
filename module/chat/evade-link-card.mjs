@@ -124,9 +124,18 @@ async function onRollEvade(event, message) {
     attackerType, defenderType: resolved.actor.type, attackTotal, targetDifficulty,
   });
 
-  const rollData = await CarlDice.rollEvadeCheck(resolved.actor, { difficulty, skipDialog: false, post: false });
+  // The free Evade (p.96) is each target's own, and isn't an Action - so it
+  // neither triggers nor ends a "next Action" Debuff (Queasy, Staggered).
+  const evaderKey = resolved.token?.uuid ?? resolved.actor.uuid;
+  const isFreeEvade = isFreeEvadeAvailable(message, evaderKey);
+  const rollData = await CarlDice.rollEvadeCheck(resolved.actor, {
+    difficulty, skipDialog: false, post: false, isAction: !isFreeEvade,
+  });
   if (!rollData) return; // Dialog cancelled - nothing to record.
-  const { roll, breakdown, degree } = rollData;
+  const { roll, breakdown, degree, debuffNote = "" } = rollData;
+  const freeEvadeUsedBy = isFreeEvade
+    ? { freeEvadeUsedBy: [...(message.getFlag("carl-rpg", "freeEvadeUsedBy") ?? []), evaderKey] }
+    : {};
 
   // Nat-20/Amazing-Success on Evade grants Advantage on the evader's NEXT
   // Attack Skill Check against THIS SAME Mob (Degrees of Success table,
@@ -144,11 +153,31 @@ async function onRollEvade(event, message) {
     }
   }
 
+  // A Disadvantaged Mob Attack's free Evade (p.96): "If they fail that free
+  // Check, they may still spend an Action to Evade as usual and try again."
+  // A failed free Evade changes nothing on the Attack card - its damage and
+  // Roll Evade buttons stay live for that second, real attempt.
+  if (isFreeEvade && !isHitDegree(degree)) {
+    await updateCardMessage(message, { flags: { "carl-rpg": freeEvadeUsedBy } });
+    await createRollMessage({
+      rolls: [roll],
+      rollMeta: [{ label: game.i18n.localize("CARLRPG.Evade.FreeEvade"), breakdown }],
+      title: game.i18n.format("CARLRPG.Evade.OutcomeTitle", { name: resolved.actor.name }),
+      img: resolved.actor.img,
+      subtitle: game.i18n.localize("CARLRPG.Evade.FreeEvadeFailed"),
+      badge: degreeBadge(degree),
+      body: `${debuffNote}<p>${game.i18n.localize("CARLRPG.Evade.FreeEvadeFailedBody")}</p>`,
+      actor: resolved.actor,
+      token: resolved.token,
+    });
+    return;
+  }
+
   // One combined write: this Evade roll is now authoritative for this
   // Attack, so the original card's own damage/target-effect buttons stop
   // being separately clickable.
   await updateCardMessage(message, {
-    flags: { "carl-rpg": { evadeRolled: true, damageSuperseded: true, targetEffectsSuperseded: true } },
+    flags: { "carl-rpg": { evadeRolled: true, damageSuperseded: true, targetEffectsSuperseded: true, ...freeEvadeUsedBy } },
   });
 
   const baseDamageByType = message.getFlag("carl-rpg", "damageByType") ?? {};
@@ -208,9 +237,9 @@ async function onRollEvade(event, message) {
   // The original Attack rolled no damage at all (it missed the static
   // formula outright) and Critical Fail's "double nothing" stays empty -
   // say so plainly rather than showing a damage footer for a zero roll.
-  const body = (!hasAdjustedDamage && (debuffKey || forwardTargetEffects))
+  const body = debuffNote + ((!hasAdjustedDamage && (debuffKey || forwardTargetEffects))
     ? `<p>${game.i18n.localize("CARLRPG.Evade.NoBaseDamage")}</p>`
-    : "";
+    : "");
 
   await createRollMessage({
     rolls: [roll],
@@ -225,6 +254,38 @@ async function onRollEvade(event, message) {
     actor: resolved.actor,
     token: resolved.token,
   });
+}
+
+/**
+ * Whether this Attack card still offers a free Evade (a net-Disadvantaged
+ * Mob Attack, p.96 - set by CarlDice.rollMobAttack). Every target gets its
+ * own, tracked by token (or actor) uuid in `freeEvadeUsedBy`.
+ * @param {ChatMessage} message
+ * @param {string|null} [evaderKey]  The evading token/actor uuid; omitted =
+ *   "does any target still have theirs?" (the button label).
+ * @returns {boolean}
+ */
+export function isFreeEvadeAvailable(message, evaderKey = null) {
+  if (!message.getFlag("carl-rpg", "freeEvade")) return false;
+  const used = message.getFlag("carl-rpg", "freeEvadeUsedBy") ?? [];
+  if (evaderKey) return !used.includes(evaderKey);
+  const targets = message.getFlag("carl-rpg", "targetUuids") ?? [];
+  return used.length < Math.max(1, targets.length);
+}
+
+/**
+ * The viewing player's own evader key for the button label - a quiet,
+ * render-time version of resolveActingActor (no warnings). null for a GM
+ * (who could be evading as any target), which falls back to "does any
+ * target still have theirs?".
+ * @returns {string|null}
+ */
+function viewerEvaderKey() {
+  if (game.user.isGM) return null;
+  const owned = (canvas.tokens?.controlled ?? []).find((t) => t.actor?.isOwner);
+  if (owned) return owned.document.uuid;
+  const character = game.user.character;
+  return character?.getActiveTokens?.(true, true)?.[0]?.document?.uuid ?? character?.uuid ?? null;
 }
 
 /**
@@ -262,6 +323,9 @@ export const evadeActionEntries = [
     canAct: (m) => canActOnUuidFlag(m, "targetUuids"),
     doneFlag: "evadeRolled",
     doneLabel: () => `<i class="fas fa-check"></i> ${game.i18n.localize("CARLRPG.Evade.Rolled")}`,
+    liveLabel: (m) => (isFreeEvadeAvailable(m, viewerEvaderKey())
+      ? `<i class="fas fa-person-running"></i> ${game.i18n.localize("CARLRPG.Evade.RollFreeButton")}`
+      : null),
     onClick: onRollEvade,
   },
   {

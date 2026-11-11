@@ -47,6 +47,16 @@ export class CarlRPGActor extends Actor {
         foundry.utils.setProperty(changed, "system.bankedStatPoints", currentBanked + 3 * delta);
       }
     }
+
+    // "Until you die or heal at least 1 HB slot" (Dying, Table 11): any HB
+    // gain - Apply Healing, a rest, a hand edit on the sheet - ends every
+    // `endsOnHealing` Debuff, in this same update.
+    const newHb = foundry.utils.getProperty(changed, "system.hb.value");
+    if (newHb !== undefined && Number(newHb) > (this.system.hb?.value ?? 0)) {
+      const conditions = foundry.utils.getProperty(changed, "system.conditions") ?? this.system.toObject().conditions ?? [];
+      const kept = conditions.filter((c) => !CONFIG.CARLRPG.debuffs[c.key]?.mechanics?.endsOnHealing);
+      if (kept.length !== conditions.length) foundry.utils.setProperty(changed, "system.conditions", kept);
+    }
   }
 
   /**

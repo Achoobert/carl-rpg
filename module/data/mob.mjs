@@ -1,6 +1,7 @@
 import CarlRPGActorBase from "./actor-base.mjs";
 import { getStatMod } from "../helpers/rules.mjs";
 import { aggregateActorBonuses, computeActiveShieldSlots } from "../helpers/modifiers.mjs";
+import { collectDebuffRows, resolveDifficultyRows } from "../helpers/debuff-effects.mjs";
 
 /**
  * Mob actor ("Building a Mob", p.270-272) - a GM-built monster/NPC stat
@@ -137,21 +138,21 @@ export default class CarlRPGMob extends CarlRPGActorBase {
 
     // Surprise/Evade (p.271): "10 + Stat Mod", with +Floor appended live at
     // display time only (see abilities-mob.hbs) - never baked into these
-    // values, since Floor changes without this Mob being re-saved. This
-    // mirrors (but deliberately doesn't share code with) dice.mjs's
-    // rollAttack targetDifficulty formula for a non-PvP Evade Difficulty -
-    // one is a GM-facing reference display, the other is roll-time combat
-    // math; kept separate so a future change to one doesn't silently drift
-    // the other without a test catching it.
-    // Woozy ("Can't add DEX Mod to Attack or Evade Checks", Table 11) is the
-    // one Debuff that names Evade explicitly, so it's the one Debuff this
-    // display value needs to reflect (see CONFIG.CARLRPG.debuffs' own
-    // docstring for why every OTHER Debuff is display-text-only here) -
-    // mirrored independently in dice.mjs's rollAttack targetDifficulty, per
-    // this getter's own note above about not sharing code between the two.
-    const isWoozy = (this.conditions ?? []).some((c) => c.key === "woozy");
-    this.surpriseBase = 10 + (this.stats.int?.mod ?? 0);
-    this.evadeBase = 10 + (isWoozy ? 0 : (this.stats.dex?.mod ?? 0));
+    // values, since Floor changes without this Mob being re-saved.
+    // This Mob's Debuffs adjust both (p.96: Disadvantage -5, "-X" -X, Woozy
+    // drops the DEX Mod) through the same helper dice.mjs's rollAttack and
+    // rollOpposedSkillCheck use for the live roll-time Difficulty
+    // (module/helpers/debuff-effects.mjs), so the sheet's number and the
+    // roll's can't drift apart. Only rows that are on by default count here;
+    // the roll dialog is where a per-roll call (e.g. sight-based Blinded on
+    // a Surprise check) gets made. *DebuffDelta lets the sheet flag a
+    // debuffed value.
+    const evade = resolveDifficultyRows(10 + (this.stats.dex?.mod ?? 0), collectDebuffRows(this, "evade", { ownAction: false }));
+    const surprise = resolveDifficultyRows(10 + (this.stats.int?.mod ?? 0), collectDebuffRows(this, "check", { ownAction: false }));
+    this.evadeBase = evade.difficulty;
+    this.evadeDebuffDelta = evade.delta;
+    this.surpriseBase = surprise.difficulty;
+    this.surpriseDebuffDelta = surprise.delta;
 
     // Stat-point budget (p.270-272) - guidance only, never enforced beyond
     // the Spend Stat Points dialog's own UI (module/apps/spend-stat-points-

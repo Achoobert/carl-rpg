@@ -6,6 +6,8 @@
  * "Apply to Target(s)" button (module/chat/target-effects-card.mjs) builds
  * and pushes conditions identically - one code path, two entry points.
  */
+import { relayRemoveConditions } from "./chat-socket.mjs";
+import { conditionLabel } from "./debuff-effects.mjs";
 
 /**
  * Build one `system.conditions` entry from a debuff key, the same shape
@@ -49,6 +51,20 @@ const INJURY_UPGRADES = {
  * @returns {Promise<Actor>}
  */
 export async function addConditionToActor(actor, key, options = {}) {
+  const result = await writeConditionToActor(actor, key, options);
+
+  // "You're Staggered (see below) and take 1d10+F Poison damage" (Sepsis,
+  // Table 11) - a debuff whose effect is partly another debuff applies that
+  // one too (CONFIG.CARLRPG.debuffs' `mechanics.alsoApplies`), through this
+  // same function so its own stacking rule is respected.
+  const alsoApplies = CONFIG.CARLRPG.debuffs[key]?.mechanics?.alsoApplies ?? [];
+  for (const extraKey of alsoApplies) {
+    await addConditionToActor(actor, extraKey, { source: options.source ?? "" });
+  }
+  return result;
+}
+
+async function writeConditionToActor(actor, key, options) {
   const current = foundry.utils.deepClone(actor.system.conditions ?? []);
   const existingIndex = current.findIndex((c) => c.key === key);
 
@@ -62,13 +78,61 @@ export async function addConditionToActor(actor, key, options = {}) {
     if (preset?.stackable === false) {
       // Already present and not meant to stack - refresh its duration (if
       // it has one) instead of silently no-oping or pushing a duplicate row.
+      // Dying's countdown is never refreshed this way - re-applying it must
+      // not hand back rounds already lost.
+      if (preset.mechanics?.countdown) return actor;
       current[existingIndex] = buildConditionEntry(key, { ...options, stacks: current[existingIndex].stacks });
       return actor.update({ "system.conditions": current });
     }
   }
 
-  current.push(buildConditionEntry(key, options));
+  const entry = buildConditionEntry(key, options);
+  // "Your CON Mod is how many rounds you have before you die" (Dying) - the
+  // countdown lives in the entry's `remaining`, ticked down at the end of
+  // each round by module/helpers/round-end.mjs.
+  if (CONFIG.CARLRPG.debuffs[key]?.mechanics?.countdown && entry.remaining === null) {
+    entry.remaining = Math.max(0, actor.system.stats?.con?.mod ?? 0);
+  }
+  current.push(entry);
   return actor.update({ "system.conditions": current });
+}
+
+/**
+ * Remove conditions by their entry id - used when a roll consumes a
+ * one-shot debuff (Stunned, Queasy, Staggered; see module/helpers/
+ * debuff-effects.mjs's consumedConditionIds). A player's roll often
+ * consumes a debuff on a Mob they don't own, so this relays the removal to
+ * the active GM in that case instead of failing silently.
+ * @param {Actor} actor
+ * @param {string[]} conditionIds
+ * @returns {Promise<void>}
+ */
+export async function removeConditionsById(actor, conditionIds) {
+  if (!actor || !conditionIds?.length) return;
+  if (!actor.isOwner) {
+    relayRemoveConditions(actor, conditionIds);
+    return;
+  }
+  const ids = new Set(conditionIds);
+  const current = actor.system.conditions ?? [];
+  const remaining = current.filter((c) => !ids.has(c.id));
+  if (remaining.length !== current.length) await actor.update({ "system.conditions": remaining });
+}
+
+/**
+ * Remove every condition whose debuff carries a given mechanics flag (e.g.
+ * Terrified's `endsOnHbLoss` after a hit lands). GM/owner only - callers
+ * are the damage-apply paths, which already run with update permission.
+ * @param {Actor} actor
+ * @param {string} flag
+ * @returns {Promise<string[]>} Labels of the removed conditions.
+ */
+export async function removeConditionsWithMechanic(actor, flag) {
+  const current = actor?.system?.conditions ?? [];
+  const removed = current.filter((c) => CONFIG.CARLRPG.debuffs[c.key]?.mechanics?.[flag]);
+  if (!removed.length) return [];
+  await actor.update({ "system.conditions": current.filter((c) => !removed.includes(c)) });
+  return removed.map(conditionLabel);
 }
 
 /**

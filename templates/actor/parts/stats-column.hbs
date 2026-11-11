@@ -7,12 +7,11 @@
   </a>
   {{#each system.stats as |stat key|}}
   <div class="carl-stat">
-    <label class="resource-label rollable" data-action="roll" data-roll="1d20+@stats.{{key}}.mod"
-      data-label="{{stat.label}}">{{stat.label}}</label>
+    <label class="resource-label rollable" data-action="rollStat" data-stat="{{key}}">{{stat.label}}</label>
     <div class="carl-stat-row">
       <span class="carl-stat-value" title="{{localize 'CARLRPG.Actor.EffectiveValue'}}">{{stat.effective}}</span>
-      <span class="carl-stat-mod rollable" data-action="roll" data-roll="1d20+@stats.{{key}}.mod"
-        data-label="{{stat.label}}" title="{{localize 'CARLRPG.Actor.EffectiveMod'}}">{{numberFormat stat.mod sign=true}}</span>
+      <span class="carl-stat-mod rollable" data-action="rollStat" data-stat="{{key}}"
+        title="{{localize 'CARLRPG.Actor.EffectiveMod'}}">{{numberFormat stat.mod sign=true}}</span>
     </div>
   </div>
   {{/each}}

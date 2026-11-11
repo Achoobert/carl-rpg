@@ -1,4 +1,5 @@
 <div class="carl-dialog-body">
+  {{#if showRollMode}}
   <div class="form-group">
     <label>{{localize "CARLRPG.Dialog.RollMode"}}</label>
     <div class="form-fields">
@@ -10,9 +11,10 @@
     <p class="carl-dialog-hint">{{localize "CARLRPG.Dialog.AdvantageAutoApplied"}}</p>
     {{/if}}
   </div>
+  {{/if}}
   {{#if showDifficulty}}
   <div class="form-group">
-    <label>{{localize "CARLRPG.Dialog.Difficulty"}}</label>
+    <label>{{#if difficultyLabel}}{{difficultyLabel}}{{else}}{{localize "CARLRPG.Dialog.Difficulty"}}{{/if}}</label>
     <div class="form-fields">
       <input type="number" name="difficulty" value="{{difficulty}}" placeholder="{{localize 'CARLRPG.Dialog.DifficultyPlaceholder'}}" />
     </div>
@@ -39,6 +41,22 @@
       <label class="carl-dialog-mana-cost-option">
         <input type="radio" name="manaCostChoice" value="{{index}}" {{#if mc.isBase}}checked{{/if}} />
         {{mc.manaCost}} {{localize "CARLRPG.Actor.Mana"}}{{#unless mc.isBase}} - {{mc.description}}{{/unless}}
+      </label>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+  {{!-- Active Debuffs that change this roll (module/helpers/debuff-effects.mjs),
+        pre-ticked per row.defaultOn - untick one the fiction says doesn't
+        apply (e.g. Blinded on a Check that doesn't need sight). --}}
+  {{#if debuffRows.length}}
+  <div class="form-group carl-dialog-conditions carl-dialog-debuffs">
+    <label>{{localize "CARLRPG.Dialog.Debuffs"}}</label>
+    <div class="form-fields carl-dialog-conditions-list">
+      {{#each debuffRows as |row|}}
+      <label class="carl-dialog-condition">
+        <input type="checkbox" name="debuffs.{{row.id}}" {{#if row.defaultOn}}checked{{/if}} />
+        {{row.label}} <span class="carl-dialog-condition-source">({{row.detail}})</span>
       </label>
       {{/each}}
     </div>

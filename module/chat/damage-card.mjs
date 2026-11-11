@@ -28,6 +28,7 @@
  * either can be clicked (or not) without affecting the other.
  */
 import { computeDamageApplication } from "../helpers/damage-pipeline.mjs";
+import { removeConditionsWithMechanic } from "../helpers/conditions.mjs";
 import { appendCardSection } from "./chat-card.mjs";
 import { updateCardMessage } from "../helpers/chat-socket.mjs";
 import { CARLRPG } from "../helpers/config.mjs";
@@ -154,6 +155,23 @@ export async function onApplyDamage(event, message) {
   const digestLines = [];
   for (const actor of actors.values()) {
     const result = computeDamageApplication(damageByType, actor, isMagic);
+
+    // "Each time a Dying Crawler would take damage from any source, they
+    // instead subtract 1 from the countdown value" (Dying, Table 11).
+    const dying = (actor.system.conditions ?? []).find((c) => CONFIG.CARLRPG.debuffs[c.key]?.mechanics?.countdown);
+    if (dying) {
+      const left = dying.remaining ?? Math.max(0, actor.system.stats?.con?.mod ?? 0);
+      if (result.totalFinalDamage > 0 && left > 0) {
+        const conditions = foundry.utils.deepClone(actor.system.conditions);
+        conditions.find((c) => c.id === dying.id).remaining = left - 1;
+        await actor.update({ "system.conditions": conditions });
+        digestLines.push(game.i18n.format("CARLRPG.Damage.DyingCountdown", {
+          name: foundry.utils.escapeHTML(actor.name), rounds: left - 1,
+        }));
+      }
+      continue;
+    }
+
     digestLines.push(formatDamageDigestLine(actor, result));
     // Both writes are batched into one actor.update() call, per shield and
     // HB both potentially changing from the same hit - avoids two separate
@@ -168,6 +186,13 @@ export async function onApplyDamage(event, message) {
       updates["system.hb.value"] = Math.max(0, currentHb - result.slotsLost);
     }
     if (Object.keys(updates).length) await actor.update(updates);
+    // "...or you take at least 1 HB slot damage" (Terrified, Table 11).
+    if (result.slotsLost > 0) {
+      const ended = await removeConditionsWithMechanic(actor, "endsOnHbLoss");
+      if (ended.length) {
+        digestLines.push(game.i18n.format("CARLRPG.Damage.DebuffEnded", { name: actor.name, debuffs: ended.join(", ") }));
+      }
+    }
   }
 
   // GM-only visibility of this digest is enforced generically by

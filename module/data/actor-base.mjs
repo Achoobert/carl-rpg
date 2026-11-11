@@ -73,8 +73,8 @@ export default class CarlRPGActorBase extends foundry.abstract.TypeDataModel {
     // 1.3): raw damage -> dr (flat) -> resistances[type] (half/double/zero)
     // -> remainder applied to HB in whole slots. These are direct,
     // GM/player-editable schema fields, NOT modifier-engine-driven bonuses -
-    // Mobs/NPCs are static stat blocks (see npc.mjs's own "deliberately
-    // minimal" note), not built up from granting items the way PC bonuses
+    // Mobs are static stat blocks ("Building a Mob", see mob.mjs) - kept
+    // minimal, not built up from granting items the way PC bonuses
     // are, and no bestiary content exists yet to need anything fancier.
     // Granting a resistance via an item/feature's ChangeEntry (targetType
     // "resistance") is a plausible future extension, deliberately not built

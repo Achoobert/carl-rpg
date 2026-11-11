@@ -66,16 +66,6 @@ Hooks.once('init', function () {
     },
   });
 
-  // One-time migration flag (see the `ready` hook below): renames any
-  // pre-existing `type: "npc"` Actor/token-actor to `type: "mob"` (this
-  // system's Actor sub-type was renamed to match the rulebook's own "Mob"
-  // terminology) and preserves each existing Mob's hand-set HB max as its
-  // new hbSlotsOverride, so the new Level/Tier-driven HB-slot formula
-  // doesn't silently override it out from under an existing world.
-  game.settings.register('carl-rpg', 'mobMigrationV1', {
-    scope: 'world', config: false, type: Boolean, default: false,
-  });
-
   CONFIG.CARLRPG = CARLRPG;
 
   // Dev-only Quench integration tests (module/quench/). Registering this
@@ -113,21 +103,6 @@ Hooks.once('init', function () {
   Object.assign(CONFIG.Actor.dataModels, {
     character: models.CarlRPGCharacter,
     mob: models.CarlRPGMob,
-    // Legacy alias, NOT a real third Actor type - kept registered (same
-    // model as "mob", same schema) purely so a pre-existing type:"npc"
-    // Actor/token-actor can still validate and join game.actors at world-
-    // load time. Foundry validates every document's `type` against this
-    // registration (and system.json's documentTypes.Actor, which must
-    // list "npc" too) *before* any hook fires, including `ready` - the
-    // mobMigrationV1 migration below (`ready` hook) is too late to prevent
-    // an unregistered "npc" type from crashing document construction, it
-    // can only convert documents that successfully constructed in the
-    // first place. Do not remove this until confident no world/token-actor
-    // anywhere still has type:"npc" (the migration converts every one it
-    // finds on each load, but a long-untouched compendium/backup could
-    // still carry one) - removing it prematurely reintroduces this exact
-    // "not a valid type for the Actor Document class" crash.
-    npc: models.CarlRPGMob,
   });
 
   CONFIG.Item.documentClass = CarlRPGItem;
@@ -142,7 +117,7 @@ Hooks.once('init', function () {
   });
 
   foundry.applications.apps.DocumentSheetConfig.registerSheet(Actor, 'carl-rpg', CarlRPGActorSheet, {
-    types: ['character', 'mob', 'npc'], // "npc" is the legacy-alias type, see CONFIG.Actor.dataModels above
+    types: ['character', 'mob'],
     makeDefault: true,
     label: 'CARLRPG.SheetLabels.Actor',
   });
@@ -274,41 +249,6 @@ Hooks.once('ready', function () {
         }
       }
     })();
-
-    // One-time migration (see mobMigrationV1's registration above): the
-    // "npc" Actor sub-type was renamed to "mob" to match the rulebook's own
-    // terminology. Any pre-existing type:"npc" document (world actor or
-    // unlinked token-actor) needs converting, or it's an orphaned/invalid
-    // document once "npc" is no longer a registered sub-type. Two sequential
-    // update() calls per actor rather than one combined call: the first is a
-    // pure type conversion (Foundry carries over every schema field the old
-    // and new types share unchanged); only once that's settled and the actor
-    // is validated against the new mob.mjs schema do we set
-    // hbSlotsOverride from its pre-migration hb.max, so this Mob's HB slot
-    // count doesn't silently reset to the new Level/Tier formula's answer
-    // out from under the GM (a brand-new "npc" actor has no Level yet, so
-    // the formula would otherwise cap it at 1 slot).
-    if (!game.settings.get('carl-rpg', 'mobMigrationV1')) {
-      (async () => {
-        const legacyNpcActors = [];
-        for (const actor of game.actors) {
-          if (actor.type === 'npc') legacyNpcActors.push(actor);
-        }
-        for (const scene of game.scenes) {
-          for (const tokenDoc of scene.tokens) {
-            if (tokenDoc.actorLink) continue;
-            const actor = tokenDoc.actor;
-            if (actor?.type === 'npc') legacyNpcActors.push(actor);
-          }
-        }
-        for (const actor of legacyNpcActors) {
-          const oldHbMax = actor.system?.hb?.max ?? null;
-          await actor.update({ type: 'mob' });
-          if (oldHbMax !== null) await actor.update({ 'system.hbSlotsOverride': oldHbMax });
-        }
-        await game.settings.set('carl-rpg', 'mobMigrationV1', true);
-      })();
-    }
   }
 });
 

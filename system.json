@@ -42,8 +42,7 @@
   "documentTypes": {
     "Actor": {
       "character": {},
-      "mob": {},
-      "npc": {}
+      "mob": {}
     },
     "Item": {
       "item": {},

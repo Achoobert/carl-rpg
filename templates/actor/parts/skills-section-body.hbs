@@ -5,9 +5,9 @@
       below. --}}
 <ol class="items-list carl-skills-list">
   <li class="item flexrow items-header">
-    <div class="item-name">{{localize "Name"}}</div>
-    <div class="item-prop">{{localize "CARLRPG.Skill.Category"}}</div>
-    <div class="item-prop">{{localize "CARLRPG.Ranked.Rank"}}</div>
+    <div class="item-name carl-sort-header" data-action="sortList" data-list="skills" data-sort-key="name">{{localize "Name"}} <i class="fas {{@root.listSort.skills.name}}"></i></div>
+    <div class="item-prop carl-sort-header" data-action="sortList" data-list="skills" data-sort-key="category">{{localize "CARLRPG.Skill.Category"}} <i class="fas {{@root.listSort.skills.category}}"></i></div>
+    <div class="item-prop carl-sort-header" data-action="sortList" data-list="skills" data-sort-key="rank">{{localize "CARLRPG.Ranked.Rank"}} <i class="fas {{@root.listSort.skills.rank}}"></i></div>
     <div class="item-controls">
       <a class="item-control item-create" data-action="createItem" data-type="skill">
         <i class="fas fa-plus"></i> {{localize "DOCUMENT.New" type="Skill"}}

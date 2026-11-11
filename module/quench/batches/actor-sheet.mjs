@@ -68,6 +68,47 @@ export default function register(quench) {
           }
         });
       });
+
+      describe("column header sort", function () {
+        useQuenchTimeout(this);
+
+        const skillRanks = (sheet) =>
+          Array.from(
+            sheet.element.querySelectorAll(".carl-skills-list > li.item[data-item-id]"),
+            (li) => sheet.actor.items.get(li.dataset.itemId).system.rank,
+          );
+
+        it("clicking a header sorts asc, then desc, then back to manual order", async function () {
+          const actor = await createTestCharacter();
+          const sheet = actor.sheet;
+          try {
+            for (const rank of [3, 10, 1]) {
+              await createTestItem(actor, "skill", `rank ${rank}`, { system: { rank } });
+            }
+            await sheet.render({ force: true });
+            await waitFor(() => sheet.rendered);
+            const manual = skillRanks(sheet);
+
+            const clickRank = async () => {
+              const before = sheet.element.querySelector(".carl-skills-list");
+              sheet.element
+                .querySelector('.carl-sort-header[data-list="skills"][data-sort-key="rank"]')
+                .click();
+              await waitFor(() => sheet.element.querySelector(".carl-skills-list") !== before);
+            };
+
+            await clickRank();
+            assert.deepEqual(skillRanks(sheet), [1, 3, 10]);
+            await clickRank();
+            assert.deepEqual(skillRanks(sheet), [10, 3, 1]);
+            await clickRank();
+            assert.deepEqual(skillRanks(sheet), manual);
+          } finally {
+            await sheet.close();
+            await deleteTestActor(actor);
+          }
+        });
+      });
     },
     { displayName: "CarlRPG: Actor Sheet" },
   );

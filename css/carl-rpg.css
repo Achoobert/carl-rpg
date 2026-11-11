@@ -842,6 +842,19 @@
 .carl-rpg .items-header .item-controls a {
   color: var(--carl-accent);
 }
+.carl-rpg .items-header .carl-sort-header {
+  cursor: pointer;
+  user-select: none;
+}
+.carl-rpg .items-header .carl-sort-header i {
+  margin-left: 3px;
+}
+.carl-rpg .items-header .carl-sort-header i.fa-sort {
+  opacity: 0.35;
+}
+.carl-rpg .items-header .carl-sort-header:hover i.fa-sort {
+  opacity: 0.8;
+}
 .carl-rpg .items-list {
   list-style: none;
   margin: 0;
@@ -864,7 +877,8 @@
   align-items: center;
   display: flex;
 }
-.carl-rpg .items-list .item-name h3, .carl-rpg .items-list .item-name h4 {
+.carl-rpg .items-list .item-name h3,
+.carl-rpg .items-list .item-name h4 {
   margin: 0;
   white-space: nowrap;
   overflow: hidden;

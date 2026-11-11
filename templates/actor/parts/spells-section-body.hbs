@@ -2,9 +2,9 @@
       Abilities tab (see abilities.hbs / collapsible-section.hbs). --}}
 <ol class="items-list">
   <li class="item flexrow items-header">
-    <div class="item-name">{{localize "Name"}}</div>
-    <div class="item-prop">{{localize "CARLRPG.Spell.ManaCost"}}</div>
-    <div class="item-prop">{{localize "CARLRPG.Ranked.Rank"}}</div>
+    <div class="item-name carl-sort-header" data-action="sortList" data-list="spells" data-sort-key="name">{{localize "Name"}} <i class="fas {{@root.listSort.spells.name}}"></i></div>
+    <div class="item-prop carl-sort-header" data-action="sortList" data-list="spells" data-sort-key="manaCost">{{localize "CARLRPG.Spell.ManaCost"}} <i class="fas {{@root.listSort.spells.manaCost}}"></i></div>
+    <div class="item-prop carl-sort-header" data-action="sortList" data-list="spells" data-sort-key="rank">{{localize "CARLRPG.Ranked.Rank"}} <i class="fas {{@root.listSort.spells.rank}}"></i></div>
     <div class="item-controls">
       <a class="item-control item-create" data-action="createItem" data-type="spell">
         <i class="fas fa-plus"></i> {{localize "DOCUMENT.New" type="Spell"}}

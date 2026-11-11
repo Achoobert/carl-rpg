@@ -2,9 +2,9 @@
   <div class="carl-inventory-layout">
   <ol class="items-list">
     <li class="item flexrow items-header">
-      <div class="item-name">{{localize "Name"}}</div>
-      <div class="item-prop">{{localize "CARLRPG.Item.Quantity"}}</div>
-      <div class="item-prop">{{localize "CARLRPG.Item.Weight"}}</div>
+      <div class="item-name carl-sort-header" data-action="sortList" data-list="gear" data-sort-key="name">{{localize "Name"}} <i class="fas {{@root.listSort.gear.name}}"></i></div>
+      <div class="item-prop carl-sort-header" data-action="sortList" data-list="gear" data-sort-key="quantity">{{localize "CARLRPG.Item.Quantity"}} <i class="fas {{@root.listSort.gear.quantity}}"></i></div>
+      <div class="item-prop carl-sort-header" data-action="sortList" data-list="gear" data-sort-key="weight">{{localize "CARLRPG.Item.Weight"}} <i class="fas {{@root.listSort.gear.weight}}"></i></div>
       <div class="item-controls">
         <a class="item-control item-create" data-action="createItem" data-type="item">
           <i class="fas fa-plus"></i> {{localize "DOCUMENT.New" type="Item"}}

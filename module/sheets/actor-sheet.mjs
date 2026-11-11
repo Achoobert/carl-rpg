@@ -47,6 +47,7 @@ export class CarlRPGActorSheet extends DragDropMixin(HandlebarsApplicationMixin(
       setShieldValue: CarlRPGActorSheet.#onSetShieldValue,
       spendStatPoints: CarlRPGActorSheet.#onSpendStatPoints,
       clearSlot: CarlRPGActorSheet.#onClearSlot,
+      sortList: CarlRPGActorSheet.#onSortList,
     },
   };
 
@@ -110,6 +111,24 @@ export class CarlRPGActorSheet extends DragDropMixin(HandlebarsApplicationMixin(
    * @type {string[]}
    */
   static CHARACTER_ONLY_TABS = ["pet"];
+
+  /**
+   * Sortable columns per list: header `data-sort-key` -> item property path.
+   * @type {Object<string, Object<string, string>>}
+   */
+  static LIST_SORT_KEYS = {
+    skills: { name: "name", category: "system.category", rank: "system.rank" },
+    spells: { name: "name", manaCost: "system.manaCost", rank: "system.rank" },
+    gear: { name: "name", quantity: "system.quantity", weight: "system.weight" },
+  };
+
+  /**
+   * Active column sort per list, set by clicking a header (asc -> desc ->
+   * off). Kept on the sheet rather than the actor: it's a view preference,
+   * and "off" falls back to the drag-and-drop order (item.sort).
+   * @type {Object<string, {key: string, dir: 1|-1}>}
+   */
+  #listSort = {};
 
   /** @override */
   _configureRenderParts(options) {
@@ -285,6 +304,20 @@ export class CarlRPGActorSheet extends DragDropMixin(HandlebarsApplicationMixin(
     context.damageEffects = damageEffects;
     context.raceAndClass = raceAndClass;
 
+    // Header-click column sort (see #onSortList). Damage Effects nest under
+    // their Skill, so they move with it.
+    context.listSort = {};
+    for (const [list, keys] of Object.entries(CarlRPGActorSheet.LIST_SORT_KEYS)) {
+      const sort = this.#listSort[list];
+      if (sort) this._sortList(context[list], keys[sort.key], sort.dir);
+      context.listSort[list] = Object.fromEntries(
+        Object.keys(keys).map((key) => [
+          key,
+          sort?.key !== key ? "fa-sort" : sort.dir === 1 ? "fa-sort-up" : "fa-sort-down",
+        ]),
+      );
+    }
+
     // Many-to-one Skill<->Damage Effect nesting for the merged Abilities
     // tab (see abilities.hbs / skills-section-body.hbs). A Damage Effect
     // intentionally renders under EVERY owned Skill it matches (not
@@ -298,6 +331,29 @@ export class CarlRPGActorSheet extends DragDropMixin(HandlebarsApplicationMixin(
     }
     context.unmatchedDamageEffects = damageEffects.filter(
       (de) => !(de.system.parentSkills ?? []).some((name) => skillNameSet.has(name)),
+    );
+  }
+
+  /**
+   * Sort a list of items in place by one property. Numbers compare as
+   * numbers, everything else as text (numeric-aware, case-insensitive);
+   * ties fall back to name.
+   * @param {Item[]} items
+   * @param {string} path Property path on the item, e.g. "system.rank".
+   * @param {1|-1} dir 1 for ascending, -1 for descending.
+   */
+  _sortList(items, path, dir) {
+    const compare = (a, b) =>
+      typeof a === "number" && typeof b === "number"
+        ? a - b
+        : String(a ?? "").localeCompare(String(b ?? ""), undefined, {
+            numeric: true,
+            sensitivity: "base",
+          });
+    items.sort(
+      (a, b) =>
+        dir * compare(foundry.utils.getProperty(a, path), foundry.utils.getProperty(b, path)) ||
+        compare(a.name, b.name),
     );
   }
 
@@ -533,6 +589,21 @@ export class CarlRPGActorSheet extends DragDropMixin(HandlebarsApplicationMixin(
   static #onClearSlot(event, target) {
     event.preventDefault();
     return clearSlot(this.actor, target.closest("[data-slot-type]").dataset);
+  }
+
+  /**
+   * Click a list's column header to sort by it: ascending, then
+   * descending, then back to the manual (drag-and-drop) order.
+   * @private
+   */
+  static #onSortList(event, target) {
+    event.preventDefault();
+    const { list, sortKey } = target.dataset;
+    const current = this.#listSort[list];
+    if (current?.key !== sortKey) this.#listSort[list] = { key: sortKey, dir: 1 };
+    else if (current.dir === 1) current.dir = -1;
+    else delete this.#listSort[list];
+    return this.render();
   }
 
   /**

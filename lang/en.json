@@ -119,6 +119,8 @@
       "HbSlotsOverrideHint": "Leave blank to use the computed Level/Tier formula (shown as a placeholder); set a number to override it.",
       "Defenses": "Defenses",
       "Dr": "DR (flat damage reduction)",
+      "DrEditHint": "Edit on the Description tab",
+      "Biography": "Biography",
       "Resistances": "Resistances",
       "ResistanceGrantedHint": "Overridden by an owned item's Resistance grant"
     },

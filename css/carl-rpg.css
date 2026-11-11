@@ -725,15 +725,19 @@
 .carl-rpg .carl-w-tiny {
   width: 3em;
   text-align: center;
+  flex: 0 0 auto;
 }
 .carl-rpg .carl-w-short {
   width: 6em;
+  flex: 0 0 auto;
 }
 .carl-rpg .carl-w-medium {
   width: 12em;
+  flex: 0 0 auto;
 }
 .carl-rpg .carl-w-wide {
   width: 18em;
+  flex: 0 0 auto;
 }
 .carl-rpg .carl-w-full {
   width: 100%;

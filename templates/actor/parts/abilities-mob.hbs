@@ -23,8 +23,17 @@
           <input type="text" class="carl-w-tiny" name="system.move" value="{{system.move}}" placeholder="20+S" />
         </div>
         <div class="carl-mob-statblock-field">
-          <label for="system.dr" class="resource-label">{{localize "CARLRPG.Actor.Dr"}}</label>
-          <input type="text" class="carl-w-tiny" name="system.dr" value="{{system.dr}}" data-dtype="Number" />
+          <label class="resource-label">{{localize "CARLRPG.Actor.Dr"}}</label>
+          {{!-- Read-only here, not a second `name="system.dr"` input: this
+                part (abilities-mob.hbs) and description.hbs both render into
+                the same <form> at once (every tab's content is rendered
+                simultaneously, only CSS toggles which is visible), so two
+                same-named fields become a RadioNodeList - Foundry's
+                FormDataExtended then submits system.dr as a 2-element ARRAY
+                on ANY sheet edit (not just to this field), which the schema
+                rejects with "dr: must be a number". Description.hbs's own
+                Defenses fieldset is the sole editable copy. --}}
+          <span class="carl-stat-value" title="{{localize 'CARLRPG.Actor.DrEditHint'}}">{{system.dr}}{{#if system.drBonus}} (={{system.drEffective}}){{/if}}</span>
         </div>
       </div>
 

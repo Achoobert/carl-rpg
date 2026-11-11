@@ -124,12 +124,20 @@
   }
 
   // Standardized field widths (see utils/_variables.scss) - applied
-  // directly on individual inputs/selects per their expected content, since
-  // an explicit width always wins over a grid cell's stretch default.
-  .carl-w-tiny { width: $width-tiny; text-align: center; }
-  .carl-w-short { width: $width-short; }
-  .carl-w-medium { width: $width-medium; }
-  .carl-w-wide { width: $width-wide; }
+  // directly on individual inputs/selects per their expected content. An
+  // explicit width always wins over a grid cell's stretch default, but
+  // Foundry core's own `.flexrow > *` rule sets `flex: 1 1 0%` on every
+  // direct flexrow child - with flex-basis:0, the flex algorithm computes
+  // size from grow/shrink alone and a plain `width` is ignored entirely, so
+  // a `.carl-w-*` field placed directly inside a literal `.flexrow` (e.g.
+  // hb-bar.hbs's HB Slots override) silently stretched to fill the row
+  // instead of respecting its own width. `flex: 0 0 auto` makes every one
+  // of these classes hold its declared width in ANY flex context; it's a
+  // no-op everywhere else (grid cells, non-flex containers).
+  .carl-w-tiny { width: $width-tiny; text-align: center; flex: 0 0 auto; }
+  .carl-w-short { width: $width-short; flex: 0 0 auto; }
+  .carl-w-medium { width: $width-medium; flex: 0 0 auto; }
+  .carl-w-wide { width: $width-wide; flex: 0 0 auto; }
   .carl-w-full { width: 100%; }
 
   // Responsive field row: each field keeps its own natural width (driven by

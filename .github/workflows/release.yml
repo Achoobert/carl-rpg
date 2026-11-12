@@ -46,8 +46,8 @@ jobs:
 
       - name: Zip
         # This list is a whitelist, not a blacklist -- anything not named
-        # here is excluded automatically. In particular packs-source/
-        # (hand-authored compendium JSON, not needed at runtime), src/ (Sass
+        # here is excluded automatically. In particular yml_source/
+        # (hand-authored compendium YAML, not needed at runtime), src/ (Sass
         # source -- only the compiled css/carl-rpg.css ships), tools/ (dev
         # build scripts), lib/some-lib/ (an unreferenced generator-template
         # leftover), and module/quench/ (dev-only Quench test batches,

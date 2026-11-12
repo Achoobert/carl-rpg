@@ -53,8 +53,8 @@ https://github.com/SobranDM/carl-rpg/releases/latest/download/system.json
 ```
 npm install
 npm run build          # compile Sass -> css/carl-rpg.css
-npm run build:packs    # compile yml_source/<pack>/*.yml -> the LevelDB packs Foundry reads
-npm run unpack:packs   # the reverse - pull in-world compendium edits back into yml_source/
+npm run build:packs    # compile packs-source/*.json -> the LevelDB packs Foundry reads
+npm run unpack:packs   # the reverse - pull in-world compendium edits back into packs-source/
 ```
 
 `build:packs`/`unpack:packs` need exclusive access to the compiled `packs/`

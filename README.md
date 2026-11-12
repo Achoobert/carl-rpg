@@ -45,7 +45,7 @@ again updates those documents instead of making copies.
 In Foundry's Game Systems tab, install via manifest URL:
 
 ```
-https://github.com/Achoobert/carl-rpg/releases/latest/download/system.json
+https://github.com/SobranDM/carl-rpg/releases/latest/download/system.json
 ```
 
 ## Development
@@ -70,4 +70,4 @@ See `CHANGELOG.md` for release history.
 
 ## License
 
-MIT with the Commons Clause (no selling) for changes from 2026-11-11 on; earlier code stays plain MIT. See `LICENSE.txt`.
+MIT - see `LICENSE.txt`.
